@@ -71,18 +71,21 @@ def main():
 			'''rollback if step2 or step3'''
 	try:
 		if source_api == 'createOrder':	
-			flow_step = get_customer_order_param('flow_step', customer_order_params)
+			opearation = get_customer_order_param('operation', customer_order_params)
 			rt_left = get_customer_order_param('rt-left', customer_order_params)
 			rt_right = get_customer_order_param('rt-right', customer_order_params)
+			rt_mgmt = get_customer_order_param('rt-mgmt', customer_order_params)
 			customer_id = get_customer_order_param('Cust_Key', customer_order_params)
 			vnf_type = get_customer_order_param('vnf_type', customer_order_params)
 			
+			'''
 			if flow_step is None or rt_left is None or rt_right is None or customer_id is None:
 				logging.error('Could not get all the required customer order parameters, stopping script execution.')
 				sys.exit(1)
+			'''
 			
 			#do first step		
-			if flow_step == 'new_act':
+			if opearation == 'create':
 				'''checking order status'''
 				try:
 					ecmman.check_ecm_order_status(order_resp)
@@ -92,19 +95,30 @@ def main():
 					logging.exceptiom(se)
 					sys.exit(1)
 					
-				
-				entry = (customer_id, rt_left, 'vnf_type_0')
-				try:
-					dbman.query('''INSERT INTO cpower VALUES (?, ?, ?)''', entry, False)
-					logging.info('Data succesfully added to cpower table: %s' % (entry,))
-				except sqlite3.IntegrityError:
-					logging.error('Could not insert the following data to cpower table %s' % (entry,))
-					logging.error('Stopping script execution.')
-					sys.exit(1)
-				
+				cur = dbman.query('''SELECT * FROM cpower WHERE customer_key=123''')
+				if cc.rowcount > 0:
+					'''The request is to add a new VNF to an existing one, what to do?'''
+				else:
+					ntw_service_row = (customer_id, 
+										vnf_type, 
+										'ntw_service_id',
+										'ntw_service_name',
+										rt_left,
+										rt_right,
+										'rt-mgmt',
+										NULL)
+					try:
+						dbman.query('''INSERT INTO cpower VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', entry, False)
+						logging.info('Data succesfully added to cpower table: %s' % (entry,))
+					except sqlite3.IntegrityError:
+						logging.error('Could not insert the following data to cpower table %s' % (entry,))
+						logging.error('Stopping script execution.')
+						sys.exit(1)
+					
 				
 				get_json_from_file('./filename.json')
 				
+				'''put step2 in custome order param (in operation tag) '''
 				if vnf_type == 'csr1000':
 					'''TODO substitute attributes in JSON file accordin to vnf_type'''
 				elif vnf_type == 'fortinet':
@@ -119,9 +133,9 @@ def main():
 				else:
 					dbman.commit()
 								
-			elif flow_step == 'step2':
+			elif operation == 'step2':
 				'''do second step'''
-			elif flow_step == 'step3':
+			elif operation == 'step3':
 				'''do third step'''
 			
 			
