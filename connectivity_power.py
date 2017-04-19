@@ -11,11 +11,21 @@ from time import sleep
 import config as c
 import ECMManager
 import DBManager
+import MyException
 
 def get_customer_order_param(s, json_data):
 	for custom_param in json_data:
 		if s == custom_param['tag']:
 			return custom_param['value']
+	return None
+
+'''['data']['order']['orderItems'][0]['createService']['id']'''
+def get_order_item(order_item_name, json_data):
+	order_items = json_data['data']['order']['orderItems']
+	for order_item in order_items:
+		item_name = order_item.keys()[0]
+		if item_name == order_item_name:
+			return order_item[item_name]
 	return None
 
 def get_json_from_file(file_name):
@@ -48,10 +58,13 @@ def main():
 	ecmman = ECMManager()
 	
 	try:
+		'''Getting ECM order'''
 		order_resp = ecmman.get_order(order_id)
 		logging.info("Response received: %s" % order_resp.status_code)
 		logging.debug(order_resp.text)
 		order_json = json.loads(order_resp.text)
+		
+		'''Getting customer order params from ECM order'''
 		customer_order_params = order_json['data']['order']['customOrderParams']
 	except ECMOrderResponseError as oe:
 		logging.error('ECM response status code not equal to 2**, stopping script execution.')
@@ -61,16 +74,9 @@ def main():
 		logging.exception(ce)
 		logging.debug(ce) '''???'''
 		sys.exit(1)
-	else:
-		try:
-			ecmman.check_ecm_resp(order_resp)
-		except KeyError as ke:
-			logging.exception(ke)
-		except ECMOrderStatusError as oe:
-			logging.exception(oe)
-			'''rollback if step2 or step3'''
+
 	try:
-		if source_api == 'createOrder':	
+		if source_api == 'createOrder':
 			opearation = get_customer_order_param('operation', customer_order_params)
 			rt_left = get_customer_order_param('rt-left', customer_order_params)
 			rt_right = get_customer_order_param('rt-right', customer_order_params)
@@ -78,6 +84,8 @@ def main():
 			customer_id = get_customer_order_param('Cust_Key', customer_order_params)
 			vnf_type = get_customer_order_param('vnf_type', customer_order_params)
 			
+			service_id = get_order_item('createService', order_json)['id']
+			service_name = get_order_item('createService', order_json)['name']
 			'''
 			if flow_step is None or rt_left is None or rt_right is None or customer_id is None:
 				logging.error('Could not get all the required customer order parameters, stopping script execution.')
@@ -91,7 +99,7 @@ def main():
 					ecmman.check_ecm_order_status(order_resp)
 				except ECMOrderStatusError as se:
 					'''no rollback required here as we're at the first step, notify nso immidiatly'''
-					'''TODO notify NSO'''
+					'''---TODO notify NSO---'''
 					logging.exceptiom(se)
 					sys.exit(1)
 					
@@ -99,6 +107,7 @@ def main():
 				if cc.rowcount > 0:
 					'''The request is to add a new VNF to an existing one, what to do?'''
 				else:
+					customer_row = (customer_id, )
 					ntw_service_row = (customer_id, 
 										vnf_type, 
 										'ntw_service_id',
@@ -108,6 +117,7 @@ def main():
 										'rt-mgmt',
 										NULL)
 					try:
+						dbman.save_customer(customer_row)
 						dbman.query('''INSERT INTO cpower VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', entry, False)
 						logging.info('Data succesfully added to cpower table: %s' % (entry,))
 					except sqlite3.IntegrityError:
@@ -118,7 +128,7 @@ def main():
 				
 				get_json_from_file('./filename.json')
 				
-				'''put step2 in custome order param (in operation tag) '''
+				'''put step2 in customer order param (in operation tag) '''
 				if vnf_type == 'csr1000':
 					'''TODO substitute attributes in JSON file accordin to vnf_type'''
 				elif vnf_type == 'fortinet':
@@ -156,4 +166,4 @@ def main():
 if __name__ == '__main__':
 	main()
 else:
-	print 'sorry'
+	print 'sorry :(' 

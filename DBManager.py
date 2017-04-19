@@ -33,6 +33,12 @@ class DatabaseManager(object):
 	
 	def commit(self):
 		self.conn.commit()
+		
+	def save_customer(self, row):
+		self.cur.execute('''INSERT INTO customer VALUES (?, ?)''', row)
+	
+	def save_network_service(self, row):
+		'''TODO'''
 
 		
 		
