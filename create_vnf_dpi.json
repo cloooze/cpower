@@ -1,0 +1,118 @@
+{
+	"tenantName": "nsotenant",
+	"customOrderParams": [{
+		"tag": "network-RT",
+		"value": ""
+	},
+	{
+		"tag": "customer-RT",
+		"value": ""
+	},
+	{
+		"tag": "customerId",
+		"value": ""
+	},
+	{
+		"tag": "serviceId",
+		"value": ""
+	},
+	{
+		"tag": "VNF_type",
+		"value": ""
+	}],
+	"orderItems": [{
+		"orderItemId": "1",
+		"createVn": {
+			"vdc": {
+				"id": "VDC-1021"
+			},
+			"name": "${customerId}_LEFT_${VNF_type}",
+			"description": "VN LEFT for ${VNF_type} of customer ${customerId}",
+			"ipVersion": "IPv4",
+			"cidrSize": "30",
+			"enabled": "true",
+			"dhcpEnabled": "true",
+			"category": "L3"
+		}
+	},
+	{
+		"orderItemId": "2",
+		"createVn": {
+			"vdc": {
+				"id": "VDC-1021"
+			},
+			"name": "${customerId}_RIGHT_${VNF_type}",
+			"description": "VN RIGHT for ${VNF_type} of customer ${customerId}",
+			"ipVersion": "IPv4",
+			"cidrSize": "30",
+			"enabled": "true",
+			"dhcpEnabled": "true",
+			"category": "L3"
+		}
+	},
+	{
+		"orderItemId": "3",
+		"createVapp": {
+			"name": "${customerId}_vDPI",
+			"vdc": {
+				"id": "VDC-1021"
+			},
+			"vimZoneName": "cpowerzone"
+		}
+	},
+	{
+		"orderItemId": "4",
+		"createVm": {
+			"vdc": {
+				"id": "VDC-1021"
+			},
+			"name": "${customerId}_vDPI",
+			"bootSource": {
+				"imageName": "Cisco_CSR1000v-vDPI_VM-Day0-lic"
+			},
+			"vmhdName": "CSR_1kv",
+			"vapp": {
+				"orderItemRef": "3"
+			}
+		}
+	},
+	{
+		"orderItemId": "5",
+		"createVmVnic": {
+			"name": "${customerId}_oam-side_VNIC",
+			"vn": {
+				"id": "VN-1134"
+			},
+			"vm": {
+				"orderItemRef": "4"
+			},
+			"description": "${customerId}_VNF Connection to OAM VxLAN"
+		}
+	},
+	{
+		"orderItemId": "6",
+		"createVmVnic": {
+			"name": "${customerId}_Customer-side_VNIC",
+			"vn": {
+				"orderItemRef": "1"
+			},
+			"vm": {
+				"orderItemRef": "4"
+			},
+			"description": "${customerId}_VNF_Connection_to_CPE"
+		}
+	},
+	{
+		"orderItemId": "7",
+		"createVmVnic": {
+			"name": "${customerId}_Network-side_VNIC",
+			"vn": {
+				"orderItemRef": "2"
+			},
+			"vm": {
+				"orderItemRef": "4"
+			},
+			"description": "${customerId}_VNF_Connection_to_Network"
+		}
+	}]
+}

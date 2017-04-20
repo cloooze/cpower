@@ -19,7 +19,6 @@ def get_customer_order_param(s, json_data):
 			return custom_param['value']
 	return None
 
-'''['data']['order']['orderItems'][0]['createService']['id']'''
 def get_order_item(order_item_name, json_data):
 	order_items = json_data['data']['order']['orderItems']
 	for order_item in order_items:
@@ -78,6 +77,8 @@ def main():
 	try:
 		if source_api == 'createOrder':
 			opearation = get_customer_order_param('operation', customer_order_params)
+			step = get_customer_order_param('step', customer_order_params)
+			
 			rt_left = get_customer_order_param('rt-left', customer_order_params)
 			rt_right = get_customer_order_param('rt-right', customer_order_params)
 			rt_mgmt = get_customer_order_param('rt-mgmt', customer_order_params)
@@ -94,59 +95,65 @@ def main():
 			
 			#do first step		
 			if opearation == 'create':
-				'''checking order status'''
-				try:
-					ecmman.check_ecm_order_status(order_resp)
-				except ECMOrderStatusError as se:
-					'''no rollback required here as we're at the first step, notify nso immidiatly'''
-					'''---TODO notify NSO---'''
-					logging.exceptiom(se)
-					sys.exit(1)
-					
-				cur = dbman.query('''SELECT * FROM cpower WHERE customer_key=123''')
-				if cc.rowcount > 0:
-					'''The request is to add a new VNF to an existing one, what to do?'''
-				else:
-					customer_row = (customer_id, )
-					ntw_service_row = (customer_id, 
-										vnf_type, 
-										'ntw_service_id',
-										'ntw_service_name',
-										rt_left,
-										rt_right,
-										'rt-mgmt',
-										NULL)
+				'''First step'''
+				if step == None:
 					try:
-						dbman.save_customer(customer_row)
-						dbman.query('''INSERT INTO cpower VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', entry, False)
-						logging.info('Data succesfully added to cpower table: %s' % (entry,))
-					except sqlite3.IntegrityError:
-						logging.error('Could not insert the following data to cpower table %s' % (entry,))
-						logging.error('Stopping script execution.')
+						'''checking order status'''
+						ecmman.check_ecm_order_status(order_resp)
+					except ECMOrderStatusError as se:
+						'''no rollback required here as we're at the first step, notify nso immidiatly'''
+						'''---TODO notify NSO---'''
+						logging.exceptiom(se)
 						sys.exit(1)
+						
+					cur = dbman.query('''SELECT * FROM cpower WHERE customer_key=123''')
+					if cc.rowcount > 0:
+						'''The request is to add a new VNF to an existing one, what to do?'''
+					else:
+						customer_row = (customer_id, )
+						ntw_service_row = (customer_id, 
+											vnf_type, 
+											'ntw_service_id',
+											'ntw_service_name',
+											rt_left,
+											rt_right,
+											'rt-mgmt',
+											NULL)
+						try:
+							dbman.save_customer(customer_row)
+							dbman.query('''INSERT INTO cpower VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', entry, False)
+							logging.info('Data succesfully added to cpower table: %s' % (entry,))
+						except sqlite3.IntegrityError:
+							logging.error('Could not insert the following data to cpower table %s' % (entry,))
+							logging.error('Stopping script execution.')
+							sys.exit(1)
+						
 					
-				
-				get_json_from_file('./filename.json')
-				
-				'''put step2 in customer order param (in operation tag) '''
-				if vnf_type == 'csr1000':
-					'''TODO substitute attributes in JSON file accordin to vnf_type'''
-				elif vnf_type == 'fortinet':
-					'''TODO substitute attributes in JSON file accordin to vnf_type'''
 					
-				try:
-					ecmman.create_order(json_data)
-				except ECMOrderResponseError as re:
-					logging.error('ECM error response.')
-				except ECMConnectionError as ce:
-					logging.error('Impossible to contact ECM.')
-				else:
-					dbman.commit()
+					get_json_from_file('./filename.json')
+					
+					'''put step2 in customer order param (in operation tag) '''
+					if vnf_type == 'csr1000':
+						'''TODO substitute attributes in JSON file accordin to vnf_type'''
+					elif vnf_type == 'fortinet':
+						'''TODO substitute attributes in JSON file accordin to vnf_type'''
+						
+					try:
+						ecmman.create_order(json_data)
+					except ECMOrderResponseError as re:
+						logging.error('ECM error response.')
+					except ECMConnectionError as ce:
+						logging.error('Impossible to contact ECM.')
+					else:
+						dbman.commit()
+				elif step == '2':
+					'''TODO step 2'''
+				elif step == '3':
+					'''TODO step 3'''
 								
-			elif operation == 'step2':
-				'''do second step'''
-			elif operation == 'step3':
-				'''do third step'''
+			elif operation == 'add':
+				'''TODO add operation of a second VNF to the Network Service'''
+
 			
 			
 			

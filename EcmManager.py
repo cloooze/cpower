@@ -7,7 +7,7 @@ import sys
 import json
 import logging
 import config as c
-from MyException import ECMException
+import MyException
 
 class ECMManager(object):
 
