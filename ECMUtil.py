@@ -9,7 +9,7 @@ import logging
 import config as c
 import MyException
 
-class ECMManager(object):
+class ECMUtil(object):
 
   def get_ecm_api_auth():
     usrPass = '%s:%s' % (c.ecm_service_api_header_auth_key, c.ecm_service_api_header_auth_value)
@@ -24,8 +24,8 @@ class ECMManager(object):
   def create_order(json_data=None, s=''):
 	c = 0
 	while c < c.retry_n:
-		logging.info("Invoking ECM create order - type %s" % s)
-		logging.debug("Sending data: \n %s" % json_data)
+		logging.info("Calling ECM API - POST /ecm_service/orders - Type %s" % s)
+		logging.debug("Sending data: %s" % json_data)
 		try:
 			resp = requests.post('%s%s' % (c.ecm_server_address, c.ecm_service_api_orders),
 				data = json.dumps(json_data),
@@ -52,8 +52,7 @@ class ECMManager(object):
   def get_order(order_id=None):
 	c = 0
 	while c < c.retry_n:
-		logging.info("Sending getOrder request to ECM...")
-		logging.info('OrderID: %s' % order_id)
+		logging.info("Calling ECM API - GET /ecm_service/orders/%s" % order_id)
 		try:
 			resp = requests.get('%s%s%s'  % (c.ecm_server_address, c.ecm_service_api_orders, order_id),
 				timeout=c.ecm_service_timeout,

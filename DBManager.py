@@ -2,12 +2,13 @@
 
 import sqlite3
 
-class DatabaseManager(object):
+class DBManager(object):
 	def __init__(self, db_name):
 		self.conn = sqlite3.connect(db_name)
 		self.cur = self.conn.cursor()
 		
 		self.cur.execute('''CREATE TABLE IF NOT EXISTS cpower (customer_id TEXT, route_target_left TEXT, vnf_type TEXT, PRIMARY KEY (customer_id)) ''')
+		'''TODO add all table create statements'''
 	
 	def query(self, query, args=None, commit=True):
 		if args == None:
@@ -34,12 +35,18 @@ class DatabaseManager(object):
 	def commit(self):
 		self.conn.commit()
 		
+	'''Table specific save functions'''
 	def save_customer(self, row):
 		self.cur.execute('''INSERT INTO customer VALUES (?, ?)''', row)
 	
 	def save_network_service(self, row):
 		'''TODO'''
-
+	
+	def save_vnf(self, row):
+		'''TODO'''
+		
+	def save_vn_group(self, row):
+		'''TODO'''
 		
 		
 dbman = DatabaseManager("prova.db")
