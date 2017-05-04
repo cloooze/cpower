@@ -73,6 +73,7 @@ class ECMUtil(object):
 		else:
 			return resp
 	
+	'''deprecated'''
 	def check_ecm_resp(resp):    
 		json_resp = json.loads(resp.text)
 		try:

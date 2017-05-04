@@ -34,6 +34,9 @@ class DBManager(object):
 	
 	def commit(self):
 		self.conn.commit()
+	
+	def rollback(self):
+		self.conn.rollback()
 		
 	'''Table specific save functions'''
 	def save_customer(self, row):
