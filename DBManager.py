@@ -3,8 +3,11 @@
 import sqlite3
 
 class DBManager(object):
-	def __init__(self, db_name):
-		self.conn = sqlite3.connect(db_name)
+	def __init__(self, db_name=None):
+		if db_name == None:
+			self.conn = sqlite3.connect(':memory:')
+		else:
+			self.conn = sqlite3.connect(db_name)
 		self.cur = self.conn.cursor()
 		
 		self.cur.execute('''CREATE TABLE IF NOT EXISTS cpower (customer_id TEXT, route_target_left TEXT, vnf_type TEXT, PRIMARY KEY (customer_id)) ''')
@@ -15,7 +18,7 @@ class DBManager(object):
 			self.cur.execute(query,)
 		else:
 			self.cur.execute(query, args)
-		if commit:
+		if commit == True:
 			self.conn.commit()
 		return self.cur
 		
@@ -50,13 +53,10 @@ class DBManager(object):
 		
 	def save_vn_group(self, row):
 		'''TODO'''
+	
+	def drop_table(self, table_name):
+		t = (table_name, )
+		self.cur.execute('''DROP TABLE IF EXIST %s''' % table_name)
 		
-		
-dbman = DatabaseManager("prova.db")
 
-cpower = ('cust_1234', '123.123.123', 'vnf_type_0')
-dbman.query('''INSERT INTO cpower VALUES (?, ?, ?)''', cpower)
-cur = dbman.query('''SELECT * FROM cpower''')
-for c in cur.fetchall():
-	print c
 
