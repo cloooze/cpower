@@ -10,9 +10,12 @@ class DBManager(object):
 			self.conn = sqlite3.connect(db_name)
 		self.cur = self.conn.cursor()
 		
-		self.cur.execute('''CREATE TABLE IF NOT EXISTS cpower (customer_id TEXT, route_target_left TEXT, vnf_type TEXT, PRIMARY KEY (customer_id)) ''')
-		'''TODO add all table create statements'''
-	
+		with open('db_creation.sql') as db_creation:
+			self.cur.executescript(db_creation.read())
+		
+	def __del__(self):
+		self.conn.close()
+		
 	def query(self, query, args=None, commit=True):
 		if args == None:
 			self.cur.execute(query,)
@@ -23,18 +26,11 @@ class DBManager(object):
 		return self.cur
 		
 	def fetchone(self):
-		return self.curr.fetchone()
+		return self.cur.fetchone()
 		
 	def fetchall(self):
 		return self.cur.fetchall()
-	
-	def __del__(self):
-		self.conn.close()
 		
-	def save(self, args):
-		self.cur.execute('''INSERT INTO cpower VALUES (?, ?, ?)''', args)
-		self.conn.commit()
-	
 	def commit(self):
 		self.conn.commit()
 	
@@ -42,21 +38,23 @@ class DBManager(object):
 		self.conn.rollback()
 		
 	'''Table specific save functions'''
-	def save_customer(self, row):
-		self.cur.execute('''INSERT INTO customer VALUES (?, ?)''', row)
+	def save_customer(self, row, commit=True):
+		q = 'INSERT INTO customer VALUES (?, ?)'
+		self.query(q, row, commit)
 	
-	def save_network_service(self, row):
-		'''TODO'''
+	def save_network_service(self, row, commit=True):
+		q = 'INSERT INTO network_service VALUES (?, ?, ?, ?, ?, ?)'
+		self.query(q, row, commit)
 	
-	def save_vnf(self, row):
-		'''TODO'''
+	def save_vnf(self, rowcommit=True):
+		q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?)'
+		self.query(q, row, commit)
 		
-	def save_vn_group(self, row):
-		'''TODO'''
+	def save_vn_group(self, rowcommit=True):
+		q = 'INSERT INTO vn_group VALUES (?, ?, ?, ?, ?, ?)'
+		self.query(q, row, commit)
 	
 	def drop_table(self, table_name):
 		t = (table_name, )
 		self.cur.execute('''DROP TABLE IF EXIST %s''' % table_name)
-		
-
-
+	
