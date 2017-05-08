@@ -8,6 +8,8 @@ class DBManager(object):
 			self.conn = sqlite3.connect(':memory:')
 		else:
 			self.conn = sqlite3.connect(db_name)
+		
+		self.conn.row_factory = sqlite3.Row
 		self.cur = self.conn.cursor()
 		
 		with open('db_creation.sql') as db_creation:
@@ -16,11 +18,11 @@ class DBManager(object):
 	def __del__(self):
 		self.conn.close()
 		
-	def query(self, query, args=None, commit=True):
-		if args == None:
+	def query(self, query, t=None, commit=True):
+		if t == None:
 			self.cur.execute(query,)
 		else:
-			self.cur.execute(query, args)
+			self.cur.execute(query, t)
 		if commit == True:
 			self.conn.commit()
 		return self.cur
@@ -46,15 +48,15 @@ class DBManager(object):
 		q = 'INSERT INTO network_service VALUES (?, ?, ?, ?, ?, ?)'
 		self.query(q, row, commit)
 	
-	def save_vnf(self, rowcommit=True):
+	def save_vnf(self, row, commit=True):
 		q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?)'
 		self.query(q, row, commit)
 		
-	def save_vn_group(self, rowcommit=True):
-		q = 'INSERT INTO vn_group VALUES (?, ?, ?, ?, ?, ?)'
+	def save_vn_group(self, row, commit=True):
+		q = 'INSERT INTO vn_group("VNF_ID", "VN_LEFT_ID", "VN_LEFT_NAME", "VN_RIGHT_ID", "VN_RIGHT_NAME") VALUES (?, ?, ?, ?, ?)'
 		self.query(q, row, commit)
 	
+	''' deprecated
 	def drop_table(self, table_name):
-		t = (table_name, )
-		self.cur.execute('''DROP TABLE IF EXIST %s''' % table_name)
-	
+		self.cur.execute('DROP TABLE IF EXISTS %s' % table_name)
+	'''

@@ -174,6 +174,8 @@ def main():
 	  
 		elif source_api == 'deleteService':
 			exit_code = _processTermination(order_id)
+		elif source_api == 'deployOvfPackage':
+			'''TODO'''
 		else:
 			logging.info('%s operation not handled' % source_api)
 		
