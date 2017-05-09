@@ -11,7 +11,7 @@ import MyException
 
 class ECMUtil(object):
 
-  def get_ecm_api_auth():
+  def get_ecm_api_auth(self):
     usrPass = '%s:%s' % (c.ecm_service_api_header_auth_key, c.ecm_service_api_header_auth_value)
     b64Val = base64.b64encode(usrPass)
     h = {
@@ -21,7 +21,7 @@ class ECMUtil(object):
         }
     return h
 	
-  def create_order(json_data=None, s=''):
+  def create_order(self, json_data=None, s=''):
 	c = 0
 	while c < c.retry_n:
 		logging.info("Calling ECM API - POST /ecm_service/orders - Type %s" % s)
@@ -30,7 +30,7 @@ class ECMUtil(object):
 			resp = requests.post('%s%s' % (c.ecm_server_address, c.ecm_service_api_orders),
 				data = json.dumps(json_data),
 				timeout = c.ecm_service_timeout,
-				headers = get_ecm_api_auth(),
+				headers = self.get_ecm_api_auth(),
 				verify=False)
 			resp.raise_for_status()
 		except requests.exceptions.HTTPError as err:
@@ -49,14 +49,14 @@ class ECMUtil(object):
 			logging.debug(resp.text)
 			return resp
 	
-  def get_order(order_id=None):
+  def get_order(self, order_id=None):
 	c = 0
 	while c < c.retry_n:
 		logging.info("Calling ECM API - GET /ecm_service/orders/%s" % order_id)
 		try:
 			resp = requests.get('%s%s%s'  % (c.ecm_server_address, c.ecm_service_api_orders, order_id),
-				timeout=c.ecm_service_timeout,
-				headers=get_ecm_api_auth(),
+				timeout = c.ecm_service_timeout,
+				headers = self.get_ecm_api_auth(),
 				verify=False)
 			resp.raise_for_status()
 		except requests.exceptions.HTTPError as err:
