@@ -14,10 +14,12 @@ import DBManager
 from MyException import *
 
 
-def check_custom_parmas(*args):
-    for param in args:
-        if param is None:
-            return 'param_name'
+def get_empty_param(**kargs):
+    for name, value in kargs.items():
+        if not value or value is None:
+            return name
+    return None
+
 
 def get_env_var(var_name):
     if var_name in os.environ:
@@ -66,8 +68,9 @@ def main():
     source_api = get_env_var('ECM_PARAMETER_SOURCEAPI')
     order_status = get_env_var('ECM_PARAMETER_ORDERSTATUS')
 
-    if (order_id or source_api or order_status) is None:
-        logging.error('ORDERID, SOURCEAPI or ORDERSTATUS not found in environment variables.')
+    empty_envvar = get_empty_param(order_id=order_id, source_api=source_api, order_status=order_status)
+    if empty_envvar is not None:
+        logging.error("Environment variable '%s' not found or empty." % empty_envvar)
         _exit('FAILURE')
 
     dbman = DBManager('cpower.db')
@@ -75,8 +78,8 @@ def main():
 
     try:
         # Getting ECM order
-        logging.info('Environments variables found: '
-                     'ORDER_ID=\'%s\' SOURCE_API=\'%s\' ORDERSTATUS=\'%s\'' % (order_id, source_api, order_status))
+        logging.info("Environments variables found: ORDER_ID='%s' SOURCE_API='%s' ORDER_STATUS='%s'"
+                     % (order_id, source_api, order_status))
         order_resp = ecmutil.get_order(order_id)
         logging.info("Response received: %s" % order_resp.status_code)
         logging.debug(order_resp.text)
@@ -102,8 +105,12 @@ def main():
             rt_right = get_customer_order_param('rt-right', customer_order_params)
             rt_mgmt = get_customer_order_param('rt-mgmt', customer_order_params)
 
-            if rt_left or rt_right or rt_mgmt is None:
-                # Send back NSO error
+            empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left, rt_right=rt_right,
+                                        rt_mgmt=rt_mgmt)
+
+            if empty_cop is not None:
+                logging.error("Custom order parameter '%s' not found or empty." % empty_cop)
+                # TODO notify error NSO
                 _exit('FAILURE')
 
             # Previous operation = createService
