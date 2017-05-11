@@ -13,8 +13,8 @@ class DBManager(object):
         self.conn.row_factory = sqlite3.Row
         self.cur = self.conn.cursor()
 
-        with open('db_creation.sql') as db_creation:
-            self.cur.executescript(db_creation.read())
+        with open('../create_db.sql') as create_db:
+            self.cur.executescript(create_db.read())
 
     def __del__(self):
         self.conn.close()
@@ -40,15 +40,23 @@ class DBManager(object):
     def rollback(self):
         self.conn.rollback()
 
-    # Table specific save functions
+    # Table specific save and get functions
 
     def save_customer(self, row, commit=True):
         q = 'INSERT INTO customer VALUES (?, ?)'
         self.query(q, row, commit)
 
+    def get_customer(self, customer_id):
+        q = 'SELECT * FROM customer WHERE customer_id=?'
+        self.query(q, (customer_id, ))
+
     def save_network_service(self, row, commit=True):
         q = 'INSERT INTO network_service VALUES (?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
+
+    def get_network_service(self, network_service_id):
+        q = 'SELECT * FROM network_service WHERE ntw_service_id=?'
+        self.query(q, (network_service_id, ))
 
     def save_vnf(self, row, commit=True):
         q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?)'

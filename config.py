@@ -4,7 +4,7 @@ nso_service_timeout = 10
 nso_auth_username = "admin"
 nso_auth_password = "admin"
 
-retry_n = 5
+retry_n = 2
 
 delete_sleep_time_sec = 20
 update_sleep_time_sec = 20
@@ -24,6 +24,4 @@ ecm_service_api_header_auth_value = "NSOAdmin!23"
 ecm_service_api_header_tenantId_key = "TenantId"
 ecm_service_api_header_tenantId_value = "nsotenant"
 
-mapping_orderid_vappid_filename = "orderid_vappid"
-
-ecm_vdc_id = 'VDC-1021'
+ecm_vdc_id = 'VDC-1042'

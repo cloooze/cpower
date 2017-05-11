@@ -66,6 +66,25 @@ class DBManagerTest(unittest.TestCase):
         self.dbman.rollback()
         self.assertIsNone(self.dbman.fetchone())
 
+    def test_fetchone_01(self):
+        t = ('customer_001', 'customer_001_name')
+        self.dbman.save_customer(t)
+        self.dbman.query('''SELECT * FROM customer WHERE customer_id="customer_001"''')
+        self.assertEqual('customer_001', self.dbman.fetchone()['customer_id'])
+
+    def test_fetchall_01(self):
+        t_1 = ('customer_001', 'customer_001_name')
+        t_2 = ('customer_002', 'customer_002_name')
+        self.dbman.save_customer(t_1)
+        self.dbman.save_customer(t_2)
+        self.dbman.query('''SELECT * FROM customer''')
+        res = self.dbman.fetchall()
+        self.assertEqual(2, len(res))
+        self.assertEqual('customer_001', res[0]['customer_id'])
+        self.assertEqual('customer_002', res[1]['customer_id'])
+
+    # Save table specific test cases
+
     def test_save_customer_01(self):
         t = ('customer_001', 'customer_001_name')
         self.dbman.save_customer(t)
@@ -100,22 +119,35 @@ class DBManagerTest(unittest.TestCase):
         self.dbman.query('''SELECT * FROM vn_group WHERE vn_group_id=1''')
         self.assertEqual(1, self.dbman.fetchone()['vn_group_id'])
 
-    def test_fetchone_01(self):
+    # Get table specific test cases
+
+    def test_get_customer_01(self):
         t = ('customer_001', 'customer_001_name')
         self.dbman.save_customer(t)
-        self.dbman.query('''SELECT * FROM customer WHERE customer_id="customer_001"''')
+        self.dbman.get_customer('customer_001')
         self.assertEqual('customer_001', self.dbman.fetchone()['customer_id'])
 
-    def test_fetchall_01(self):
-        t_1 = ('customer_001', 'customer_001_name')
-        t_2 = ('customer_002', 'customer_002_name')
-        self.dbman.save_customer(t_1)
-        self.dbman.save_customer(t_2)
-        self.dbman.query('''SELECT * FROM customer''')
-        res = self.dbman.fetchall()
-        self.assertEqual(2, len(res))
-        self.assertEqual('customer_001', res[0]['customer_id'])
-        self.assertEqual('customer_002', res[1]['customer_id'])
+    def test_get_customer_02(self):
+        t = ('customer_001', 'customer_001_name')
+        self.dbman.save_customer(t)
+        self.dbman.get_customer('customer_001')
+        r = self.dbman.fetchall()
+        self.assertEqual(1, len(r))
+        self.assertEqual('customer_001', r[0]['customer_id'])
+
+    def test_get_network_service_01(self):
+        t_1 = ('ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001',)
+        t_2 = ('ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002',)
+        self.dbman.save_network_service(t_1)
+        self.dbman.save_network_service(t_2)
+        self.dbman.get_network_service('ntw_001')
+        self.assertEqual('ntw_001', self.dbman.fetchone()['ntw_service_id'])
+
+    def test_get_network_service_02(self):
+        t_1 = ('ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001',)
+        self.dbman.save_network_service(t_1)
+        self.dbman.get_network_service('ntw_002')
+        self.assertIsNone(self.dbman.fetchone())
 
 if __name__ == '__main__':
     unittest.main()

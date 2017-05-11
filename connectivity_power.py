@@ -1,17 +1,14 @@
 #!/usr/bin/env python 
 
 import sqlite3
-import requests
-import base64
 import os
 import sys
 import json
 import logging
-from time import sleep
-import config as c
-import ECMUtil
-import DBManager
-from MyException import *
+import ECMUtil as ecm_util
+import NSOUtil as nso_util
+from DBManager import DBManager
+from ECMException import *
 
 
 def get_empty_param(**kargs):
@@ -43,9 +40,10 @@ def get_order_item(order_item_name, json_data):
     return None
 
 
-def get_json_from_file(file_name):
-    with open(file_name) as file:
-        data = json.load(file)
+# Returns JSON data (from file_name) as dictionary
+def deserialize_json_file(file_name):
+    with open(file_name) as f:
+        data = json.load(f)
     return data
 
 
@@ -56,6 +54,7 @@ def _exit(exit_mess):
         sys.exit(e[exit_mess])
     except (NameError, KeyError):
         sys.exit(1)
+
 
 def main():
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -74,13 +73,12 @@ def main():
         _exit('FAILURE')
 
     dbman = DBManager('cpower.db')
-    ecmutil = ECMUtil()
 
     try:
         # Getting ECM order
         logging.info("Environments variables found: ORDER_ID='%s' SOURCE_API='%s' ORDER_STATUS='%s'"
                      % (order_id, source_api, order_status))
-        order_resp = ecmutil.get_order(order_id)
+        order_resp = ecm_util.get_order(order_id)
         logging.info("Response received: %s" % order_resp.status_code)
         logging.debug(order_resp.text)
     except ECMOrderResponseError as oe:
@@ -120,19 +118,20 @@ def main():
                 service_id = get_order_item('createService', order_json)['id']
                 service_name = get_order_item('createService', order_json)['name']
 
-                if order_status == 'COM':
-                    pass
-                elif order_status == 'SUBACT':
-                    # Is SUBACT a possible value? to check
-                    pass
-                else:
+                if order_status == 'ERR':
                     # No rollback required here as we're at the first step, notify nso immidiatly
                     # TODO notify NSO
                     _exit('FAILURE')
+                elif order_status == 'SUBACT':
+                    # Is SUBACT a possible value? to check
+                    pass
 
-                cur = dbman.query('''SELECT * FROM cpower WHERE customer_key=123''')
-                if cur.rowcount > 0:
-                    # The request is to add a new VNF to an existing one, what to do?
+                # dbman.get_network_service(service_id)
+                dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id=?', service_id)
+
+                if dbman.fetchone() is not None:
+                    # There is already a VNF created for the specific service_id received, this means that creation
+                    # of a second VNF is being requested
                     pass
                 else:
                     customer_row = (customer_id,)
@@ -155,7 +154,7 @@ def main():
 
                 file_name = 'filename.json'
                 try:
-                    json_data = get_json_from_file(file_name)
+                    json_data = deserialize_json_file(file_name)
                 except IOError:
                     logging.error('No such file or directory: %s' % file_name)
                     _exit('FAILURE')
@@ -168,7 +167,7 @@ def main():
                     # TODO substitute attributes in JSON file according to vnf_type
                     pass
                 try:
-                    ecmutil.create_order(json_data)
+                    ecm_util.create_order(json_data)
                 except ECMOrderResponseError as re:
                     logging.error('ECM error response.')
                 except ECMConnectionError as ce:
