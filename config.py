@@ -12,6 +12,7 @@ update_sleep_time_sec = 20
 ecm_server_address = "https://pmk03ecm.rmedlab.eld.it.eu.ericsson.se:443"
 ecm_service_timeout = 10
 ecm_service_api_orders = "/ecm_service/orders/"
+ecm_service_api_ovfpackage = "/ecm_service/ovfpackage/"
 ecm_service_api_vdcs = "/ecm_service/vdcs/"
 ecm_service_api_vmvnics = "/ecm_service/vmvnics/"
 ecm_service_api_services = "/ecm_service/services/"
@@ -24,4 +25,11 @@ ecm_service_api_header_auth_value = "NSOAdmin!23"
 ecm_service_api_header_tenantId_key = "TenantId"
 ecm_service_api_header_tenantId_value = "nsotenant"
 
-ecm_vdc_id = 'VDC-1042'
+ecm_tenant_name = ""
+ecm_vdc_id = "VDC-1042"
+
+# OVF packages IDs mapping
+ovf_package_fortinet_1 = ""
+ovf_package_fortinet_2 = ""
+ovf_package_dpi_1 = ""
+ovf_package_dpi_1 = ""

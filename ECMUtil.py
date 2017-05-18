@@ -70,6 +70,31 @@ def get_order(order_id=None):
     raise ECMConnectionError
 
 
+def deploy_ovf_package(ovf_package_id, json_data):
+    count = 0
+    while count < c.retry_n:
+        logging.info("Calling ECM API - POST /ovfpackages/%s/deploy" % ovf_package_id)
+        try:
+            resp = requests.post('%s%s%s/deploy' % (c.ecm_server_address, c.ecm_service_api_ovfpackage, ovf_package_id),
+                                 data=json.dumps(json_data),
+                                 timeout=c.ecm_service_timeout,
+                                 headers=get_ecm_api_auth(),
+                                 verify=False)
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError:
+            raise ECMOrderResponseError
+        except requests.exceptions.Timeout:
+            logging.warning("ECM connection timeout, trying again...")
+            count += 1
+        except requests.exceptions.RequestException:
+            logging.error("Something went very wrong during ECM API invocation...")
+            raise ECMConnectionError
+        else:
+            return resp
+    logging.error("Could not get a response from ECM. Connection Timeout.")
+    raise ECMConnectionError
+
+
 # Deprecated
 def check_ecm_resp(resp):
     json_resp = json.loads(resp.text)

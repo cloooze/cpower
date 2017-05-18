@@ -1,0 +1,11 @@
+{
+    "cpwr:vnfconfig": {
+        "customer-key": "",
+        "vnf-id": "",
+        "vnf-info": {
+            "mgmt-ip": "",
+            "cust-ip": "",
+            "ntw-ip": ""
+        }
+    }
+}

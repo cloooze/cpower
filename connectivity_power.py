@@ -9,7 +9,11 @@ import ECMUtil as ecm_util
 import NSOUtil as nso_util
 from DBManager import DBManager
 from ECMException import *
+import config as c
 
+GENERIC_ERROR = '100'
+REQUEST_ERROR = '200'
+NETWORK_ERROR = '300'
 
 def get_empty_param(**kargs):
     for name, value in kargs.items():
@@ -19,19 +23,36 @@ def get_empty_param(**kargs):
 
 
 def get_env_var(var_name):
+    """Return the value of the given environment variable."""
     if var_name in os.environ:
         return os.environ[var_name]
     return None
 
 
-def get_customer_order_param(s, json_data):
+def get_custom_order_param(s, json_data):
+    """Returns the customerOrderParam value that matches the given name s. None is returned if the is no matching 
+    customerOrderParam. """
     for custom_param in json_data:
         if s == custom_param['tag']:
             return custom_param['value']
     return None
 
 
+def get_custom_input_params(order_item_name, json_data_compl):
+    order_item = get_order_item(order_item_name, json_data_compl)
+    return order_item['customInputParams']
+
+
+def get_custom_input_param(param_name, json_data):
+    for custom_input_param in json_data:
+        if param_name == custom_input_param['tag']:
+            return custom_input_param['value']
+    return None
+
+
 def get_order_item(order_item_name, json_data):
+    """Returns a dictionary representing the single item orderItem that matches order_item_name from the ECM getOrder 
+    JSON response. None is returned if there is no matching orderItem."""
     order_items = json_data['data']['order']['orderItems']
     for order_item in order_items:
         item_name = order_item.keys()[0]
@@ -40,8 +61,8 @@ def get_order_item(order_item_name, json_data):
     return None
 
 
-# Returns JSON data (from file_name) as dictionary
 def deserialize_json_file(file_name):
+    """Returns a dictionary object from a file JSON"""
     with open(file_name) as f:
         data = json.load(f)
     return data
@@ -67,12 +88,13 @@ def main():
     source_api = get_env_var('ECM_PARAMETER_SOURCEAPI')
     order_status = get_env_var('ECM_PARAMETER_ORDERSTATUS')
 
-    empty_envvar = get_empty_param(order_id=order_id, source_api=source_api, order_status=order_status)
-    if empty_envvar is not None:
-        logging.error("Environment variable '%s' not found or empty." % empty_envvar)
+    empty_env_var = get_empty_param(order_id=order_id, source_api=source_api, order_status=order_status)
+    if empty_env_var is not None:
+        logging.error("Environment variable '%s' not found or empty." % empty_env_var)
         _exit('FAILURE')
 
     dbman = DBManager('cpower.db')
+
 
     try:
         # Getting ECM order
@@ -85,107 +107,110 @@ def main():
         logging.error('ECM response status code not equal to 2**.')
         _exit('FAILURE')
     except ECMConnectionError as ce:
-        logging.exception('Impossible to contact ECM.')
+        logging.exception('Unable to connect to ECM.')
         _exit('FAILURE')
 
     order_json = json.loads(order_resp.text)
-    # Getting customer order params from response
-    customer_order_params = order_json['data']['order']['customOrderParams']
 
     try:
         if source_api == 'createOrder':
-            operation = get_customer_order_param('operation', customer_order_params)
-            step = get_customer_order_param('step', customer_order_params)
+            # Getting customer order params from response
+            custom_order_params = order_json['data']['order']['customOrderParams'] # check if it generates exception
 
-            customer_id = get_customer_order_param('Cust_Key', customer_order_params)
-            vnf_type = get_customer_order_param('vnf_type', customer_order_params)
-            rt_left = get_customer_order_param('rt-left', customer_order_params)
-            rt_right = get_customer_order_param('rt-right', customer_order_params)
-            rt_mgmt = get_customer_order_param('rt-mgmt', customer_order_params)
+            if get_order_item('createService', order_json) is not None:
+                customer_id = get_custom_order_param('Cust_Key', custom_order_params)
+                vnf_type = get_custom_order_param('vnf_type', custom_order_params)
+                rt_left = get_custom_order_param('rt-left', custom_order_params)
+                rt_right = get_custom_order_param('rt-right', custom_order_params)
+                rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
 
-            empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left, rt_right=rt_right,
-                                        rt_mgmt=rt_mgmt)
+                nso_error_notification = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
 
-            if empty_cop is not None:
-                logging.error("Custom order parameter '%s' not found or empty." % empty_cop)
-                # TODO notify error NSO
-                _exit('FAILURE')
+                if order_status == 'ERR':
+                    nso_util.notify_nso(nso_error_notification)
+                    _exit('FAILURE')
 
-            # Previous operation = createService
-            order_type = get_order_item('createService', order_json)
+                empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left,
+                                            rt_right=rt_right,
+                                            rt_mgmt=rt_mgmt)
 
-            if order_type == 'createService':
+                if empty_cop is not None:
+                    error_message = "Custom order parameter '%s' not found or empty." % empty_cop
+                    logging.error(error_message)
+                    params = {'operation': 'genericError', 'customer-key': customer_id, 'error-code': REQUEST_ERROR,
+                              'error-message': error_message}
+                    nso_util.notify_nso(params)
+                    _exit('FAILURE')
+
                 service_id = get_order_item('createService', order_json)['id']
                 service_name = get_order_item('createService', order_json)['name']
 
-                if order_status == 'ERR':
-                    # No rollback required here as we're at the first step, notify nso immidiatly
+                try:
+                    dbman.save_customer((customer_id, customer_id + '_name'))
+                except sqlite3.IntegrityError:
+                    # Customer already in DB, it's ok.
+                    pass
+
+                ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt)
+                try:
+                    dbman.save_network_service(ntw_service_row)
+                    logging.info('Network Service \'%s\' successfully stored to DB.' % service_id)
+                except sqlite3.IntegrityError:
+                    logging.error('Could not store data to DB.')
+                    _exit('FAILURE')
+
+                if vnf_type == 'csr1000':
+                    ovf_package_id = c.ovf_package_dpi_1
+                elif vnf_type == 'fortinet':
+                    ovf_package_id = c.ovf_package_fortinet_1
+                else:
+                    logging.error('VNF Type %s not supported' % vnf_type)
+                    _exit('FAILURE')
+
+                deploy_ovf_package_file = './json/deploy_ovf_package.json'
+                try:
+                    ovf_package_json = deserialize_json_file(deploy_ovf_package_file)
+                    ovf_package_json['tenantName'] = c.ecm_tenant_name
+                    ovf_package_json['vdc']['id'] = c.ecm_vdc_id
+                    ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
+                except IOError:
+                    logging.error('No such file or directory: %s' % deploy_ovf_package_file)
+                    _exit('FAILURE')
+
+                try:
+                    ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
+                except ECMOrderResponseError as re:
+                    # TODO notify NSO
+                    logging.error('ECM error response.')
+                    _exit('FAILURE')
+                except ECMConnectionError as ce:
                     # TODO notify NSO
                     _exit('FAILURE')
-                elif order_status == 'SUBACT':
-                    # Is SUBACT a possible value? to check
-                    pass
-
-                # dbman.get_network_service(service_id)
-                dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id=?', service_id)
-
-                if dbman.fetchone() is not None:
-                    # There is already a VNF created for the specific service_id received, this means that creation
-                    # of a second VNF is being requested
-                    pass
-                else:
-                    customer_row = (customer_id,)
-                    ntw_service_row = (service_id,
-                                       service_name,
-                                       customer_id,
-                                       rt_left,
-                                       rt_right,
-                                       'rt-mgmt',
-                                       vnf_type,
-                                       None)
-                    try:
-                        dbman.save_customer(customer_row)
-                        dbman.save_network_service(ntw_service_row)
-                        logging.info('Data successfully added to cpower table: %s' % ntw_service_row)
-                    except sqlite3.IntegrityError:
-                        dbman.rollback()
-                        logging.error('Could not insert the following data to cpower table %s.' % ntw_service_row)
-                        _exit('FAILURE')
-
-                file_name = 'filename.json'
-                try:
-                    json_data = deserialize_json_file(file_name)
-                except IOError:
-                    logging.error('No such file or directory: %s' % file_name)
-                    _exit('FAILURE')
-
-                # Put step2 in customer order param (in operation tag)
-                if vnf_type == 'csr1000':
-                    # TODO substitute attributes in JSON file according to vnf_type
-                    pass
-                elif vnf_type == 'fortinet':
-                    # TODO substitute attributes in JSON file according to vnf_type
-                    pass
-                try:
-                    ecm_util.create_order(json_data)
-                except ECMOrderResponseError as re:
-                    logging.error('ECM error response.')
-                except ECMConnectionError as ce:
-                    logging.error('Impossible to contact ECM.')
-                else:
-                    dbman.commit()
-            elif order_type == 'deleteService':
+            elif get_order_item('createVlink', order_json) is not None:
                 # TODO
                 pass
+            else:
+                logging.error('Custmor workflow ended up in a inconsistent state, please check the logs.')
+                _exit('FAILURE')
+        elif source_api == 'modifyService':
+            custom_input_params = get_custom_input_params('modifyService', order_json)
+            get_custom_input_param('vnf_type', custom_input_params) # i.e.: How to get customInputParam
+            # TODO
         elif source_api == 'deployOvfPackage':
+            # TODO
+            pass
+        elif source_api == 'modifyVapp':
+            # TODO
+            pass
+        elif source_api == 'deleteService':
             # TODO
             pass
         else:
             logging.info('%s operation not handled' % source_api)
 
         _exit('SUCCESS')
-    except Exception as e:
-        logging.exception('Exception encountered during stript execution.')
+    except Exception as e: # Fix this
+        logging.exception('Something went wrong during script execution.')
         _exit('FAILURE')
 
 
