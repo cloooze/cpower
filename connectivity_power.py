@@ -15,6 +15,7 @@ GENERIC_ERROR = '100'
 REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
+
 def get_empty_param(**kargs):
     for name, value in kargs.items():
         if not value or value is None:
@@ -84,10 +85,12 @@ def main():
 
     logging.info('Starting script execution...')
 
+    # Getting env var set by ECMSID
     order_id = get_env_var('ECM_PARAMETER_ORDERID')
     source_api = get_env_var('ECM_PARAMETER_SOURCEAPI')
     order_status = get_env_var('ECM_PARAMETER_ORDERSTATUS')
 
+    # Checking if some of the env var are empty
     empty_env_var = get_empty_param(order_id=order_id, source_api=source_api, order_status=order_status)
     if empty_env_var is not None:
         logging.error("Environment variable '%s' not found or empty." % empty_env_var)
@@ -95,11 +98,10 @@ def main():
 
     dbman = DBManager('cpower.db')
 
-
     try:
-        # Getting ECM order
         logging.info("Environments variables found: ORDER_ID='%s' SOURCE_API='%s' ORDER_STATUS='%s'"
                      % (order_id, source_api, order_status))
+        # Getting ECM order using the ORDER_ID env var
         order_resp = ecm_util.get_order(order_id)
         logging.info("Response received: %s" % order_resp.status_code)
         logging.debug(order_resp.text)
@@ -114,9 +116,10 @@ def main():
 
     try:
         if source_api == 'createOrder':
-            # Getting customer order params from response
+            # Getting customer order params from getOrder response
             custom_order_params = order_json['data']['order']['customOrderParams'] # check if it generates exception
 
+            # Checking if order type is createService
             if get_order_item('createService', order_json) is not None:
                 customer_id = get_custom_order_param('Cust_Key', custom_order_params)
                 vnf_type = get_custom_order_param('vnf_type', custom_order_params)
@@ -125,11 +128,13 @@ def main():
                 rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
 
                 nso_error_notification = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
+                nso_generic_error = {'operation': 'genericError', 'customer-key': customer_id}
 
                 if order_status == 'ERR':
                     nso_util.notify_nso(nso_error_notification)
                     _exit('FAILURE')
 
+                # Checking if the needed custom order params are empty
                 empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left,
                                             rt_right=rt_right,
                                             rt_mgmt=rt_mgmt)
@@ -137,14 +142,18 @@ def main():
                 if empty_cop is not None:
                     error_message = "Custom order parameter '%s' not found or empty." % empty_cop
                     logging.error(error_message)
-                    params = {'operation': 'genericError', 'customer-key': customer_id, 'error-code': REQUEST_ERROR,
-                              'error-message': error_message}
-                    nso_util.notify_nso(params)
+                    nso_generic_error['error-code'] = REQUEST_ERROR
+                    nso_generic_error['error-message'] = error_message
+                    nso_util.notify_nso(nso_generic_error)
                     _exit('FAILURE')
 
                 service_id = get_order_item('createService', order_json)['id']
                 service_name = get_order_item('createService', order_json)['name']
 
+                # We got everything we need to proceed
+                # Saving customer and network service info to DB. A check is not needed as NSO should send a
+                # createService only in case of first VNF creation. This means there should not be customer and service
+                # already.
                 try:
                     dbman.save_customer((customer_id, customer_id + '_name'))
                 except sqlite3.IntegrityError:
@@ -156,15 +165,26 @@ def main():
                     dbman.save_network_service(ntw_service_row)
                     logging.info('Network Service \'%s\' successfully stored to DB.' % service_id)
                 except sqlite3.IntegrityError:
-                    logging.error('Could not store data to DB.')
+                    error_message = 'Could not process createService operation for Network Service \'%s\'.' % service_id
+                    logging.error(error_message)
+                    nso_generic_error['error-code'] = REQUEST_ERROR
+                    nso_generic_error['error-message'] = error_message
+                    nso_util.notify_nso(nso_generic_error)
                     _exit('FAILURE')
 
+                # Loading the right ovf package id depending on the requested VNF type.
+                # It is loaded the ovf package 1 as we are in the 'createService' (meaning that the first VNF for the
+                # service is being requested
                 if vnf_type == 'csr1000':
                     ovf_package_id = c.ovf_package_dpi_1
                 elif vnf_type == 'fortinet':
                     ovf_package_id = c.ovf_package_fortinet_1
                 else:
-                    logging.error('VNF Type %s not supported' % vnf_type)
+                    error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
+                    logging.error(error_message)
+                    nso_generic_error['error-code'] = REQUEST_ERROR
+                    nso_generic_error['error-message'] = error_message
+                    nso_util.notify_nso(nso_generic_error)
                     _exit('FAILURE')
 
                 deploy_ovf_package_file = './json/deploy_ovf_package.json'
