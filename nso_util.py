@@ -7,7 +7,7 @@ import sys
 import json
 import logging
 import config as c
-from NSOException import NSOConnectionError
+from nso_exception import NSOConnectionError
 
 CREATE_SERVICE = {
     "cpwr:servicecreate": {

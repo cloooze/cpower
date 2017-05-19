@@ -5,7 +5,7 @@ import base64
 import json
 import logging
 import config as c
-from ECMException import *
+from ecm_exception import *
 
 
 def get_ecm_api_auth():

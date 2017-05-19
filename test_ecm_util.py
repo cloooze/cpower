@@ -1,9 +1,9 @@
 #!/usr/bin/env python 
 
 import unittest
-import ECMUtil as ECMUtil
+import ecm_util as ECMUtil
 import config as c
-from ECMException import *
+from ecm_exception import *
 
 
 class ECMUtilTest(unittest.TestCase):

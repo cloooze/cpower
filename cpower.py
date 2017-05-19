@@ -5,10 +5,10 @@ import os
 import sys
 import json
 import logging
-import ECMUtil as ecm_util
-import NSOUtil as nso_util
-from DBManager import DBManager
-from ECMException import *
+import ecm_util as ecm_util
+import nso_util as nso_util
+from db_manager import DBManager
+from ecm_exception import *
 import config as c
 
 GENERIC_ERROR = '100'

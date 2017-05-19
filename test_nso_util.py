@@ -1,9 +1,9 @@
 #!/usr/bin/env python 
 
 import unittest
-import NSOUtil as NSOUtil
+import nso_util as NSOUtil
 import config as c
-from NSOException import *
+from nso_exception import *
 
 
 class NSOUtilTest(unittest.TestCase):

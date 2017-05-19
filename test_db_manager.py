@@ -1,7 +1,7 @@
 #!/usr/bin/env python 
 
 import unittest
-from DBManager import DBManager
+from db_manager import DBManager
 
 
 class DBManagerTest(unittest.TestCase):
