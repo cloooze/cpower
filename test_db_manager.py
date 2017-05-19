@@ -35,8 +35,8 @@ class DBManagerTest(unittest.TestCase):
         self.assertEqual('test2', self.dbman.fetchone()['customer_id'])
 
     def test_query_network_service_01(self):
-        t = ('test2', 'test2', 'test2', 'test2', 'test2', 'test2', 'test2', 'test2')
-        self.assertIsNotNone(self.dbman.query('''INSERT INTO network_service VALUES(?, ?, ?, ?, ?, ?, ?, ?)''', t))
+        t = ('test2', 'test2', 'test2', 'test2', 'test2', 'test2', 'test2', 'test2', 'test2', 'test2')
+        self.assertIsNotNone(self.dbman.query('''INSERT INTO network_service VALUES(?, ?, ?, ?, ?, ?, ?, ?, ? ,?)''', t))
         c_id = ('test2',)
         self.dbman.query('''SELECT * FROM network_service WHERE ntw_service_id=?''', c_id)
         self.assertEqual('test2', self.dbman.fetchone()['ntw_service_id'])
@@ -99,7 +99,7 @@ class DBManagerTest(unittest.TestCase):
         self.assertEqual('customer_002', self.dbman.fetchone()['customer_id'])
 
     def test_save_network_service_01(self):
-        t = ('ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002')
+        t = ('ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002')
         self.dbman.save_network_service(t)
         c_id = ('ntw_002',)
         self.dbman.query('''SELECT * FROM network_service WHERE ntw_service_id=?''', c_id)
@@ -135,15 +135,15 @@ class DBManagerTest(unittest.TestCase):
         self.assertEqual('customer_001', r[0]['customer_id'])
 
     def test_get_network_service_01(self):
-        t_1 = ('ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001')
-        t_2 = ('ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_001', 'ntw_001')
+        t_1 = ('ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001')
+        t_2 = ('ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_002', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001')
         self.dbman.save_network_service(t_1)
         self.dbman.save_network_service(t_2)
         self.dbman.get_network_service('ntw_001')
         self.assertEqual('ntw_001', self.dbman.fetchone()['ntw_service_id'])
 
     def test_get_network_service_02(self):
-        t_1 = ('ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001')
+        t_1 = ('ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001')
         self.dbman.save_network_service(t_1)
         self.dbman.get_network_service('ntw_002')
         self.assertIsNone(self.dbman.fetchone())

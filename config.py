@@ -12,7 +12,7 @@ update_sleep_time_sec = 20
 ecm_server_address = "https://TBaECMVM1.nfv.cselt.it:443"
 ecm_service_timeout = 10
 ecm_service_api_orders = "/ecm_service/orders/"
-ecm_service_api_ovfpackage = "/ecm_service/ovfpackage/"
+ecm_service_api_ovfpackage = "/ecm_service/ovfpackages/"
 ecm_service_api_vdcs = "/ecm_service/vdcs/"
 ecm_service_api_vmvnics = "/ecm_service/vmvnics/"
 ecm_service_api_services = "/ecm_service/services/"
@@ -26,7 +26,7 @@ ecm_service_api_header_tenantId_key = "TenantId"
 ecm_service_api_header_tenantId_value = "cpower"
 
 ecm_tenant_name = "cpower"
-ecm_vdc_id = "VDC-1042"
+ecm_vdc_id = "ca3b4390-9a86-4678-b5f0-89b6390918a7"
 
 # OVF packages IDs mapping
 ovf_package_fortinet_1 = "9b2f31df-07a6-4b10-a791-eca721240db9"

@@ -54,12 +54,16 @@ def get_custom_input_param(param_name, json_data):
 def get_order_item(order_item_name, json_data):
     """Returns a dictionary representing the single item orderItem that matches order_item_name from the ECM getOrder 
     JSON response. None is returned if there is no matching orderItem."""
+    r = []
     order_items = json_data['data']['order']['orderItems']
     for order_item in order_items:
         item_name = order_item.keys()[0]
         if item_name == order_item_name:
-            return order_item[item_name]
-    return None
+            r.append(order_item[item_name])
+    if len(r) > 0:
+        return r
+    else:
+        return None
 
 
 def deserialize_json_file(file_name):
@@ -147,8 +151,8 @@ def main():
                     nso_util.notify_nso(nso_generic_error)
                     _exit('FAILURE')
 
-                service_id = get_order_item('createService', order_json)['id']
-                service_name = get_order_item('createService', order_json)['name']
+                service_id = get_order_item('createService', order_json)[0]['id']
+                service_name = get_order_item('createService', order_json)[0]['name']
 
                 # We got everything we need to proceed
                 # Saving customer and network service info to DB. A check is not needed as NSO should send a
@@ -160,7 +164,7 @@ def main():
                     # Customer already in DB, it's ok.
                     pass
 
-                ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt)
+                ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '','', '')
                 try:
                     dbman.save_network_service(ntw_service_row)
                     logging.info('Network Service \'%s\' successfully stored to DB.' % service_id)
@@ -217,7 +221,12 @@ def main():
             get_custom_input_param('vnf_type', custom_input_params) # i.e.: How to get customInputParam
             # TODO
         elif source_api == 'deployOvfPackage':
-            # TODO
+            vnf_id = get_order_item('createVapp', order_json)[0]['id']
+            vm_id = get_order_item('createVm', order_json)[0]['id']
+            vmvnic_id = get_order_item('createVmVnic', order_json)['id']
+            # Una volta definito l'OVF, controllare se ci sono orderItem duplicati, se si, va aggiornato il motodo
+            # get_order_item per ritornare 1 o n item
+            # OVF structure 1 createVapp, 1 createVm, 3 createVmVnic, 0/2 createVn
             pass
         elif source_api == 'modifyVapp':
             # TODO

@@ -74,6 +74,7 @@ def deploy_ovf_package(ovf_package_id, json_data):
     count = 0
     while count < c.retry_n:
         logging.info("Calling ECM API - POST /ovfpackages/%s/deploy" % ovf_package_id)
+        logging.debug("Sending data: %s" % json_data)
         try:
             resp = requests.post('%s%s%s/deploy' % (c.ecm_server_address, c.ecm_service_api_ovfpackage, ovf_package_id),
                                  data=json.dumps(json_data),
