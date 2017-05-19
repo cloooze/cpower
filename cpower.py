@@ -127,11 +127,11 @@ def main():
                 rt_right = get_custom_order_param('rt-right', custom_order_params)
                 rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
 
-                nso_error_notification = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
+                nso_operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
                 nso_generic_error = {'operation': 'genericError', 'customer-key': customer_id}
 
                 if order_status == 'ERR':
-                    nso_util.notify_nso(nso_error_notification)
+                    nso_util.notify_nso(nso_operation_error)
                     _exit('FAILURE')
 
                 # Checking if the needed custom order params are empty
