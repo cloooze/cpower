@@ -11,6 +11,8 @@ class DBManager(object):
             self.conn = sqlite3.connect(db_name)
 
         self.conn.row_factory = sqlite3.Row
+
+        # Disabled ONLY for testing purposes
         # self.conn.execute("PRAGMA foreign_keys = ON")
 
         self.cur = self.conn.cursor()

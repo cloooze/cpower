@@ -19,17 +19,30 @@ def get_ecm_api_auth():
     return h
 
 
-def create_order(json_data=None, s=''):
+def invoke_ecm_api(param, api, http_verb, json_data=''):
     count = 0
     while count < c.retry_n:
-        logging.info("Calling ECM API - POST /ecm_service/orders - Type %s" % s)
         logging.debug("Sending data: %s" % json_data)
         try:
-            resp = requests.post('%s%s' % (c.ecm_server_address, c.ecm_service_api_orders),
-                                 data=json.dumps(json_data),
+            if http_verb == 'GET':
+                resp = requests.get('%s%s%s' % (c.ecm_server_address, api, param),
                                  timeout=c.ecm_service_timeout,
                                  headers=get_ecm_api_auth(),
                                  verify=False)
+            elif http_verb == 'POST':
+                resp = requests.post('%s%s' % (c.ecm_server_address, api),
+                                     data=json.dumps(json_data),
+                                    timeout=c.ecm_service_timeout,
+                                    headers=get_ecm_api_auth(),
+                                    verify=False)
+            elif http_verb == 'PUT':
+                resp = requests.put('%s%s%s' % (c.ecm_server_address, api, param),
+                                     data=json.dumps(json_data),
+                                     timeout=c.ecm_service_timeout,
+                                     headers=get_ecm_api_auth(),
+                                     verify=False)
+            else:
+                return None
             resp.raise_for_status()
         except requests.exceptions.HTTPError:
             raise ECMOrderResponseError
@@ -45,29 +58,6 @@ def create_order(json_data=None, s=''):
     logging.error("Could not get a response from ECM. Connection Timeout.")
     raise ECMConnectionError
 
-
-def get_order(order_id=None):
-    count = 0
-    while count < c.retry_n:
-        logging.info("Calling ECM API - GET /ecm_service/orders/%s" % order_id)
-        try:
-            resp = requests.get('%s%s%s' % (c.ecm_server_address, c.ecm_service_api_orders, order_id),
-                                timeout=c.ecm_service_timeout,
-                                headers=get_ecm_api_auth(),
-                                verify=False)
-            resp.raise_for_status()
-        except requests.exceptions.HTTPError:
-            raise ECMOrderResponseError
-        except requests.exceptions.Timeout:
-            logging.warning("ECM connection timeout, trying again...")
-            count += 1
-        except requests.exceptions.RequestException:
-            logging.error("Something went very wrong during ECM API invocation...")
-            raise ECMConnectionError
-        else:
-            return resp
-    logging.error("Could not get a response from ECM. Connection Timeout.")
-    raise ECMConnectionError
 
 
 def deploy_ovf_package(ovf_package_id, json_data):
@@ -94,7 +84,6 @@ def deploy_ovf_package(ovf_package_id, json_data):
             return resp
     logging.error("Could not get a response from ECM. Connection Timeout.")
     raise ECMConnectionError
-
 
 # Deprecated
 def check_ecm_resp(resp):

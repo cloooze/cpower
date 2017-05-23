@@ -19,7 +19,7 @@ class ECMUtilTest(unittest.TestCase):
 
     def test_get_order(self):
         with self.assertRaises(ECMConnectionError):
-            ECMUtil.get_order('1112344')
+            ECMUtil.invoke_ecm_api('1112344', c.ecm_service_api_orders, 'GET')
 
 if __name__ == '__main__':
     unittest.main()
