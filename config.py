@@ -9,7 +9,7 @@ retry_n = 3
 delete_sleep_time_sec = 20
 update_sleep_time_sec = 20
 
-ecm_server_address = "https://TBaECMVM1.nfv.cselt.it:443"
+ecm_server_address = "https://pmk03ecm.rmedlab.eld.it.eu.ericsson.se"
 ecm_service_timeout = 10
 ecm_service_api_orders = "/ecm_service/orders/"
 ecm_service_api_vns = "/ecm_service/vns/"
@@ -25,8 +25,8 @@ ecm_service_api_header_auth_value = "Er1css0n!"
 ecm_service_api_header_tenantId_key = "TenantId"
 ecm_service_api_header_tenantId_value = "cpower"
 
-ecm_tenant_name = "cpower"
-ecm_vdc_id = "ca3b4390-9a86-4678-b5f0-89b6390918a7"
+ecm_tenant_name = "Cpower-tenant"
+ecm_vdc_id = "59d1ace2-76bd-4331-b0d0-39503086038f"
 
 # OVF packages IDs mapping
 ovf_package_fortinet_1 = "9b2f31df-07a6-4b10-a791-eca721240db9"
