@@ -23,7 +23,7 @@ ecm_service_api_delete_vrfs = "/ecm_service/vrfs/"
 ecm_service_api_header_auth_key =  "cpoweradmin"
 ecm_service_api_header_auth_value = "Er1css0n!"
 ecm_service_api_header_tenantId_key = "TenantId"
-ecm_service_api_header_tenantId_value = "cpower"
+ecm_service_api_header_tenantId_value = "Cpower-tenant"
 
 ecm_tenant_name = "Cpower-tenant"
 ecm_vdc_id = "59d1ace2-76bd-4331-b0d0-39503086038f"

@@ -11,7 +11,7 @@ from db_manager import DBManager
 from ecm_exception import *
 import config as c
 
-GENERIC_ERROR = '100'
+INTERNAL_ERROR = '100'
 REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
@@ -131,11 +131,11 @@ def main():
                 rt_right = get_custom_order_param('rt-right', custom_order_params)
                 rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
 
-                nso_operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
-                nso_generic_error = {'operation': 'genericError', 'customer-key': customer_id}
+                operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
+                workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
                 if order_status == 'ERR':
-                    nso_util.notify_nso(nso_operation_error)
+                    nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
 
                 # Checking if the needed custom order params are empty
@@ -146,9 +146,9 @@ def main():
                 if empty_cop is not None:
                     error_message = "Custom order parameter '%s' not found or empty." % empty_cop
                     logging.error(error_message)
-                    nso_generic_error['error-code'] = REQUEST_ERROR
-                    nso_generic_error['error-message'] = error_message
-                    nso_util.notify_nso(nso_generic_error)
+                    workflow_error['error-code'] = REQUEST_ERROR
+                    workflow_error['error-message'] = error_message
+                    nso_util.notify_nso(workflow_error)
                     _exit('FAILURE')
 
                 service_id = get_order_item('createService', order_json)[0]['id']
@@ -165,16 +165,8 @@ def main():
                     pass
 
                 ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
-                try:
-                    dbman.save_network_service(ntw_service_row)
-                    logging.info('Network Service \'%s\' successfully stored to DB.' % service_id)
-                except sqlite3.IntegrityError:
-                    error_message = 'Could not process createService operation for Network Service \'%s\'.' % service_id
-                    logging.error(error_message)
-                    nso_generic_error['error-code'] = REQUEST_ERROR
-                    nso_generic_error['error-message'] = error_message
-                    nso_util.notify_nso(nso_generic_error)
-                    _exit('FAILURE')
+                dbman.save_network_service(ntw_service_row)
+                logging.info('Network Service \'%s\' successfully stored to DB.' % service_id)
 
                 # Loading the right ovf package id depending on the requested VNF type.
                 # It is loaded the ovf package 1 as we are in the 'createService' (meaning that the first VNF for the
@@ -186,9 +178,9 @@ def main():
                 else:
                     error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
                     logging.error(error_message)
-                    nso_generic_error['error-code'] = REQUEST_ERROR
-                    nso_generic_error['error-message'] = error_message
-                    nso_util.notify_nso(nso_generic_error)
+                    workflow_error['error-code'] = REQUEST_ERROR
+                    workflow_error['error-message'] = error_message
+                    nso_util.notify_nso(workflow_error)
                     _exit('FAILURE')
 
                 deploy_ovf_package_file = './json/deploy_ovf_package.json'
@@ -199,16 +191,18 @@ def main():
                     ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
                 except IOError:
                     logging.error('No such file or directory: %s' % deploy_ovf_package_file)
+                    workflow_error['error-code'] = INTERNAL_ERROR
+                    workflow_error['error-message'] = 'Internal custom workflow error.'
+                    nso_util.notify_nso(workflow_error)
                     _exit('FAILURE')
 
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
-                except ECMOrderResponseError as re:
+                except (ECMConnectionError, ECMOrderResponseError):
                     # TODO notify NSO
-                    logging.error('ECM error response.')
-                    _exit('FAILURE')
-                except ECMConnectionError as ce:
-                    # TODO notify NSO
+                    logging.error('Unable to contact ECM APIs northbound interface.')
+                    operation_error['operation'] = 'createVnf'
+                    nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
             elif get_order_item('createVlink', order_json) is not None:
                 # TODO
@@ -220,11 +214,11 @@ def main():
             # OVF structure 1 createVapp, 1 createVm, 3 createVmVnic, 0/2 createVn
             customer_id = get_order_item('createVm', order_json)[0]['name'].split('-')[0]
 
-            nso_operation_error = {'operation': 'createVnf', 'result': 'failure', 'customer-key': customer_id}
-            nso_generic_error = {'operation': 'genericError', 'customer-key': customer_id}
+            operation_error = {'operation': 'createVnf', 'result': 'failure', 'customer-key': customer_id}
+            workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
             if order_status == 'ERR':
-                nso_util.notify_nso(nso_operation_error)
+                nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
 
             # Getting VNF, VNs, VMVNICS detail
@@ -255,7 +249,7 @@ def main():
             r = dbman.fetchone()
             if r is not None:
                 # Move vnf_position to 2
-                dbman.query('UPDATE vnf SET vnf_position=? WHERE vnf.ntw_service_id=?', ('2', network_service_id))
+                dbman.query('UPDATE vnf SET vnf_position=? WHERE vnf.ntw_service_id=?', ('2', network_service_id), False)
             else:
                 # Saving VN group info to db
                 vn_left_resp = ecm_util.invoke_ecm_api(vn_left['id'], c.ecm_service_api_vns, 'GET')
@@ -266,23 +260,24 @@ def main():
                 vn_group_row = (vnf_id, vn_left['id'], vn_left['name'], vn_left_resp_json['data']['vn']['vimObjectId'],
                                 vn_right['id'], vn_right['name'], vn_right_resp_json['data']['vn']['vimObjectId'])
 
-                dbman.save_vn_group(vn_group_row)
+                dbman.save_vn_group(vn_group_row, False)
 
             # Saving VNF info to db
-            vnf_row = (vnf_id, network_service_id, vnf_type, vm_id, '1')
-            dbman.save_vnf(vnf_row)
+            vnf_row = (vnf_id, network_service_id, vnf_type, vm_id, '1', 'NO')
+            dbman.save_vnf(vnf_row, False)
 
             # Modifying service
-            data = '{"vapps":[{"id":"%s"}], "customInputParams":[{"tag": "source", "value": "workflow"}]}' % vnf_id
+            modify_service_file = './json/modify_service.json'
+            modify_service_json = deserialize_json_file(modify_service_file)
+            modify_service_json['vapps'][0]['id'] =  vnf_id
+
             try:
-                ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', data)
-            except ECMOrderResponseError as re:
-                # TODO notify NSO
-                logging.error('ECM error response.')
+                ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+            except (ECMOrderResponseError, ECMConnectionError):
+                # TODO notify NSO What to Do here??
                 _exit('FAILURE')
-            except ECMConnectionError as ce:
-                # TODO notify NSO
-                _exit('FAILURE')
+
+            dbman.commit()
         elif source_api == 'modifyVapp':
             # TODO
             pass
@@ -300,6 +295,7 @@ def main():
 
         _exit('SUCCESS')
     except Exception as e: # Fix this
+        dbman.rollback()
         logging.exception('Something went wrong during script execution.')
         _exit('FAILURE')
 

@@ -1,0 +1,9 @@
+{
+	"vapps": [{
+		"id": ""
+	}],
+	"customInputParams": [{
+		"tag": "source",
+		"value": "workflow"
+	}]
+}
