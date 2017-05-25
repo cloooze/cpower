@@ -71,7 +71,7 @@ class DBManager(object):
     # VNF table
 
     def save_vnf(self, row, commit=True):
-        q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?, ?)'
+        q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?)'
         self.query(q, row, commit)
 
     def get_vnf(self, vnf_id):
@@ -88,3 +88,11 @@ class DBManager(object):
     def get_vnf(self, vnf_id):
         q = 'SELECT * FROM vnf WHERE vnf_id=?'
         self.query(q, (vnf_id, ))
+
+    def save_vm(self, row, commit=True):
+        q = 'INSERT INTO vm VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        self.query(q, row, commit)
+
+    def get_vm(self, vm_id):
+        q = 'SELECT * FROM vm WHERE vm_id=?'
+        self.query(q, (vm_id, ))

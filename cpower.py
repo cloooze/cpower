@@ -235,8 +235,10 @@ def main():
 
             vmvnics = get_order_item('createVmVnic', order_json)
             vmvnic_ids = []
+            vmvnic_names = []
             for vmvnic in vmvnics:
                 vmvnic_ids.append(vmvnic['id'])
+                vmvnic_names.append(vmvnic['name'])
 
             # Getting ntw service id and vnftype for this customer (assuming that 1 customer can have max 1 ntw service)
             dbman.query('SELECT ntw_service_id, vnf_type FROM network_service ns WHERE ns.customer_id = ?', (customer_id, ))
@@ -263,8 +265,12 @@ def main():
                 dbman.save_vn_group(vn_group_row, False)
 
             # Saving VNF info to db
-            vnf_row = (vnf_id, network_service_id, vnf_type, vm_id, '1', 'NO')
+            vnf_row = (vnf_id, network_service_id, vnf_type, '1', 'NO')
             dbman.save_vnf(vnf_row, False)
+
+            # Saving VM info to db
+            vm_row = (vm_id, vnf_id, vmvnic_ids[0], vmvnic_names[0], '', vmvnic_ids[1], vmvnic_names[1], '')
+            dbman.save_vm(vm_row)
 
             # Modifying service
             modify_service_file = './json/modify_service.json'
@@ -285,8 +291,37 @@ def main():
             # TODO
             pass
         elif source_api == 'modifyService':
+            operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
+            workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
+
+            if order_status == 'ERR':
+                nso_util.notify_nso(operation_error)
+                _exit('FAILURE')
+
             if get_custom_input_param('source', get_custom_input_params('modifyService', order_json)) == 'workflow':
-                pass
+                service = get_order_item('modifyService', order_json)
+                service_id = service['id']
+                vnf_id = service['vapss'][0]['id']
+
+                # Associate service network - vnf into DB
+                dbman.query('UPDATE vnf SET ntw_service_binding=? WHERE vnf_id=?', ('YES', vnf_id))
+
+                # Getting VM id from DB, and get vimObjectId from ECM (/vms API)
+                dbman.get_vnf(vnf_id)
+                vm_id = dbman.fetchone()['vm_id']
+
+                resp = ecm_util.invoke_ecm_api(vm_id, 'GET', c.ecm_service_api_vms)
+                vm_json = json.loads(resp.text)
+
+                vmvnics_detail = {"name": vm_json['data']['vm']['vmVnics'][0]['name'][-5:],
+                            "id": vm_json['data']['vm']['vmVnics'][0]['id'],
+                            "name": vm_json['data']['vm']['vmVnics'][1]['name'][-5:],
+                            "id": vm_json['data']['vm']['vmVnics'][0]['id']}
+
+
+                # Checking if vmvnics
+
+
             else:
                 # TODO implement function
                 pass

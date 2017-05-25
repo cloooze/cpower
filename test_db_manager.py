@@ -42,8 +42,8 @@ class DBManagerTest(unittest.TestCase):
         self.assertEqual('test2', self.dbman.fetchone()['ntw_service_id'])
 
     def test_query_vnf_01(self):
-        t = ('test2', 'test2', 'test2', 'test2', 'test2', 'test2')
-        self.assertIsNotNone(self.dbman.query('''INSERT INTO vnf VALUES(?, ?, ?, ?, ?, ?)''', t))
+        t = ('test2', 'test2', 'test2', 'test2', 'test2')
+        self.assertIsNotNone(self.dbman.query('''INSERT INTO vnf VALUES(?, ?, ?, ?, ?)''', t))
         c_id = ('test2',)
         self.dbman.query('''SELECT * FROM vnf WHERE vnf_id=?''', c_id)
         self.assertEqual('test2', self.dbman.fetchone()['vnf_id'])
@@ -106,7 +106,7 @@ class DBManagerTest(unittest.TestCase):
         self.assertEqual('ntw_002', self.dbman.fetchone()['ntw_service_id'])
 
     def test_save_vnf_01(self):
-        t = ('vnf_002', 'vnf_002', 'vnf_002', 'vnf_002', 'vnf_002', 'vnf_002')
+        t = ('vnf_002', 'vnf_002', 'vnf_002', 'vnf_002', 'vnf_002')
         self.dbman.save_vnf(t)
         c_id = ('vnf_002',)
         self.dbman.query('''SELECT * FROM vnf WHERE vnf_id=?''', c_id)
