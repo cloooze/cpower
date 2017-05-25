@@ -54,7 +54,7 @@ def get_custom_input_param(param_name, json_data):
 def get_order_item(order_item_name, json_data):
     """Returns a dictionary representing the single item orderItem that matches order_item_name from the ECM getOrder 
     JSON response. None is returned if there is no matching orderItem."""
-    r = ()
+    r = []
     order_items = json_data['data']['order']['orderItems']
     for order_item in order_items:
         item_name = order_item.keys()[0]
@@ -107,8 +107,6 @@ def main():
                      % (order_id, source_api, order_status))
         # Getting ECM order using the ORDER_ID env var
         order_resp = ecm_util.invoke_ecm_api(order_id, c.ecm_service_api_orders, 'GET')
-        logging.info("Response received: %s" % order_resp.status_code)
-        logging.debug(order_resp.text)
     except ECMOrderResponseError as oe:
         logging.error('ECM response status code not equal to 2**.')
         _exit('FAILURE')
@@ -135,6 +133,7 @@ def main():
                 workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
                 if order_status == 'ERR':
+                    logging.error(order_json['data']['order']['orderMsgs'])
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
 
@@ -218,6 +217,7 @@ def main():
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
             if order_status == 'ERR':
+                logging.error(order_json['data']['order']['orderMsgs'])
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
 
@@ -243,7 +243,7 @@ def main():
             # Getting ntw service id and vnftype for this customer (assuming that 1 customer can have max 1 ntw service)
             dbman.query('SELECT ntw_service_id, vnf_type FROM network_service ns WHERE ns.customer_id = ?', (customer_id, ))
             row = dbman.fetchone()
-            network_service_id = row['network_service_id']
+            network_service_id = row['ntw_service_id']
             vnf_type = row['vnf_type'] # ???
 
             # Checking if there is already a VNF for this network service

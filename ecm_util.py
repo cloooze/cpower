@@ -22,7 +22,6 @@ def get_ecm_api_auth():
 def invoke_ecm_api(param, api, http_verb, json_data=''):
     count = 0
     while count < c.retry_n:
-        logging.debug("Sending data: %s" % json_data)
         try:
             if http_verb == 'GET':
                 resp = requests.get('%s%s%s' % (c.ecm_server_address, api, param),
@@ -35,12 +34,14 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
                                     timeout=c.ecm_service_timeout,
                                     headers=get_ecm_api_auth(),
                                     verify=False)
+                logging.debug("Sending data: %s" % json_data)
             elif http_verb == 'PUT':
                 resp = requests.put('%s%s%s' % (c.ecm_server_address, api, param),
                                      data=json.dumps(json_data),
                                      timeout=c.ecm_service_timeout,
                                      headers=get_ecm_api_auth(),
                                      verify=False)
+                logging.debug("Sending data: %s" % json_data)
             else:
                 return None
             resp.raise_for_status()
@@ -53,24 +54,21 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
             raise ECMConnectionError
         else:
             logging.info("Response received: %s" % resp.status_code)
-            logging.debug(resp.text)
             return resp
     logging.error("Could not get a response from ECM. Connection Timeout.")
     raise ECMConnectionError
 
 
-
 def deploy_ovf_package(ovf_package_id, json_data):
     count = 0
     while count < c.retry_n:
-        logging.info("Calling ECM API - POST /ovfpackages/%s/deploy" % ovf_package_id)
-        logging.debug("Sending data: %s" % json_data)
         try:
             resp = requests.post('%s%s%s/deploy' % (c.ecm_server_address, c.ecm_service_api_ovfpackage, ovf_package_id),
                                  data=json.dumps(json_data),
                                  timeout=c.ecm_service_timeout,
                                  headers=get_ecm_api_auth(),
                                  verify=False)
+            logging.debug("Sending data: %s" % json_data)
             resp.raise_for_status()
         except requests.exceptions.HTTPError:
             raise ECMOrderResponseError
