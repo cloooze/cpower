@@ -97,3 +97,11 @@ class DBManager(object):
     def get_vm(self, vm_id):
         q = 'SELECT * FROM vm WHERE vm_id=?'
         self.query(q, (vm_id, ))
+
+    def save_order(self, row, commit=True):
+        q = 'INSERT INTO order VALUES (?, ?, ?)'
+        self.query(q, row, commit)
+
+    def get_order(self, order_id):
+        q = 'SELECT * FROM order WHERE order_id=?'
+        self.query(q, (order_id, ))

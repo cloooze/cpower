@@ -276,10 +276,14 @@ def main():
             # Modifying service
             modify_service_file = './json/modify_service.json'
             modify_service_json = deserialize_json_file(modify_service_file)
-            modify_service_json['vapps'][0]['id'] =  vnf_id
+            modify_service_json['vapps'][0]['id'] = vnf_id
 
             try:
-                ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+                resp = ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+                if resp is not None:
+                    r = json.loads(resp.text)
+                    order_id = r['data']['order']['id']
+                    dbman.save_order((order_id, customer_id, ''))
             except (ECMOrderResponseError, ECMConnectionError):
                 # TODO notify NSO What to Do here??
                 _exit('FAILURE')
@@ -292,6 +296,9 @@ def main():
             # TODO
             pass
         elif source_api == 'modifyService':
+            dbman.get_order(order_id)
+            customer_id = dbman.fetchone()['customer_id']
+
             operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
@@ -311,7 +318,7 @@ def main():
                 dbman.get_vnf(vnf_id)
                 vm_id = dbman.fetchone()['vm_id']
 
-                resp = ecm_util.invoke_ecm_api(vm_id, 'GET', c.ecm_service_api_vms)
+                resp = ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'GET')
                 vm_json = json.loads(resp.text)
 
                 vmvnics_detail = {"name": vm_json['data']['vm']['vmVnics'][0]['name'],
@@ -321,8 +328,6 @@ def main():
 
 
                 # Checking if vmvnics
-
-
             else:
                 # TODO implement function
                 pass
