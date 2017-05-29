@@ -4,12 +4,15 @@ import sqlite3
 import os
 import sys
 import json
+from logging.handlers import *
 import logging
 import ecm_util as ecm_util
 import nso_util as nso_util
 from db_manager import DBManager
 from ecm_exception import *
 import config as c
+
+logger = logging.getLogger('cpower')
 
 INTERNAL_ERROR = '100'
 REQUEST_ERROR = '200'
@@ -41,7 +44,7 @@ def get_custom_order_param(s, json_data):
 
 def get_custom_input_params(order_item_name, json_data_compl):
     order_item = get_order_item(order_item_name, json_data_compl)
-    return order_item['customInputParams']
+    return order_item[0]['customInputParams']
 
 
 def get_custom_input_param(param_name, json_data):
@@ -75,7 +78,7 @@ def deserialize_json_file(file_name):
 
 def _exit(exit_mess):
     e = {'SUCCESS': 0, 'FAILURE': 1}
-    logging.info('End of script execution - %s' % exit_mess)
+    logger.info('End of script execution - %s' % exit_mess)
     try:
         sys.exit(e[exit_mess])
     except (NameError, KeyError):
@@ -83,11 +86,18 @@ def _exit(exit_mess):
 
 
 def main():
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    logging.basicConfig(filename=os.path.join(os.sep, script_dir, 'cpower.log'), level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)s %(message)s')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    logger.setLevel(logging.DEBUG)
+    if not os.path.exists('log'):
+        os.makedirs('log')
+    handler = RotatingFileHandler('log/cpower.log', maxBytes=1024, backupCount=10)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    #####
+    # script_dir = os.path.dirname(os.path.realpath(__file__))
+    # logging.basicConfig(filename=os.path.join(os.sep, script_dir, 'cpower.log'), level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
-    logging.info('Starting script execution...')
+    logger.info('Starting script execution...')
 
     # Getting env var set by ECMSID
     order_id = get_env_var('ECM_PARAMETER_ORDERID')
@@ -97,18 +107,18 @@ def main():
     # Checking if some of the env var are empty
     empty_env_var = get_empty_param(order_id=order_id, source_api=source_api, order_status=order_status)
     if empty_env_var is not None:
-        logging.error("Environment variable '%s' not found or empty." % empty_env_var)
+        logger.error("Environment variable '%s' not found or empty." % empty_env_var)
         _exit('FAILURE')
 
     dbman = DBManager('cpower.db')
 
     try:
-        logging.info("Environments variables found: ORDER_ID='%s' SOURCE_API='%s' ORDER_STATUS='%s'"
+        logger.info("Environments variables found: ORDER_ID='%s' SOURCE_API='%s' ORDER_STATUS='%s'"
                      % (order_id, source_api, order_status))
         # Getting ECM order using the ORDER_ID env var
         order_resp = ecm_util.invoke_ecm_api(order_id, c.ecm_service_api_orders, 'GET')
     except ECMOrderResponseError as oe:
-        logging.error('ECM response status code not equal to 2**.')
+        logger.error('ECM response status code not equal to 2**.')
         _exit('FAILURE')
     except ECMConnectionError as ce:
         logging.exception('Unable to connect to ECM.')
@@ -133,7 +143,7 @@ def main():
                 workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
                 if order_status == 'ERR':
-                    logging.error(order_json['data']['order']['orderMsgs'])
+                    logger.error(order_json['data']['order']['orderMsgs'])
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
 
@@ -144,7 +154,7 @@ def main():
 
                 if empty_cop is not None:
                     error_message = "Custom order parameter '%s' not found or empty." % empty_cop
-                    logging.error(error_message)
+                    logger.error(error_message)
                     workflow_error['error-code'] = REQUEST_ERROR
                     workflow_error['error-message'] = error_message
                     nso_util.notify_nso(workflow_error)
@@ -165,7 +175,7 @@ def main():
 
                 ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
                 dbman.save_network_service(ntw_service_row)
-                logging.info('Network Service \'%s\' successfully stored to DB.' % service_id)
+                logger.info('Network Service \'%s\' successfully stored to DB.' % service_id)
 
                 # Loading the right ovf package id depending on the requested VNF type.
                 # It is loaded the ovf package 1 as we are in the 'createService' (meaning that the first VNF for the
@@ -176,7 +186,7 @@ def main():
                     ovf_package_id = c.ovf_package_fortinet_1
                 else:
                     error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
-                    logging.error(error_message)
+                    logger.error(error_message)
                     workflow_error['error-code'] = REQUEST_ERROR
                     workflow_error['error-message'] = error_message
                     nso_util.notify_nso(workflow_error)
@@ -189,7 +199,7 @@ def main():
                     ovf_package_json['vdc']['id'] = c.ecm_vdc_id
                     ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
                 except IOError:
-                    logging.error('No such file or directory: %s' % deploy_ovf_package_file)
+                    logger.error('No such file or directory: %s' % deploy_ovf_package_file)
                     workflow_error['error-code'] = INTERNAL_ERROR
                     workflow_error['error-message'] = 'Internal custom workflow error.'
                     nso_util.notify_nso(workflow_error)
@@ -199,7 +209,7 @@ def main():
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
                 except (ECMConnectionError, ECMOrderResponseError):
                     # TODO notify NSO
-                    logging.error('Unable to contact ECM APIs northbound interface.')
+                    logger.error('Unable to contact ECM APIs northbound interface.')
                     operation_error['operation'] = 'createVnf'
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
@@ -207,7 +217,7 @@ def main():
                 # TODO
                 pass
             else:
-                logging.error('Custmor workflow ended up in a inconsistent state, please check the logs.')
+                logger.error('Custmor workflow ended up in a inconsistent state, please check the logs.')
                 _exit('FAILURE')
         elif source_api == 'deployOvfPackage':
             # OVF structure 1 createVapp, 1 createVm, 3 createVmVnic, 0/2 createVn
@@ -217,7 +227,7 @@ def main():
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
             if order_status == 'ERR':
-                logging.error(order_json['data']['order']['orderMsgs'])
+                logger.error(order_json['data']['order']['orderMsgs'])
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
 
@@ -282,6 +292,7 @@ def main():
                 resp = ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
                 if resp is not None:
                     r = json.loads(resp.text)
+                    logger.info(r)
                     order_id = r['data']['order']['id']
                     dbman.save_order((order_id, customer_id, ''))
             except (ECMOrderResponseError, ECMConnectionError):
@@ -307,32 +318,33 @@ def main():
                 _exit('FAILURE')
 
             if get_custom_input_param('source', get_custom_input_params('modifyService', order_json)) == 'workflow':
-                service = get_order_item('modifyService', order_json)
+                service = get_order_item('modifyService', order_json)[0]
                 service_id = service['id']
-                vnf_id = service['vapss'][0]['id']
+                vnf_id = service['vapps'][0]['id']
 
                 # Associate service network - vnf into DB
                 dbman.query('UPDATE vnf SET ntw_service_binding=? WHERE vnf_id=?', ('YES', vnf_id))
 
                 # Getting VM id from DB, and get vimObjectId from ECM (/vms API)
-                dbman.get_vnf(vnf_id)
+                dbman.query('SELECT * FROM vm WHERE vnf_id=?', (vnf_id, ))
                 vm_id = dbman.fetchone()['vm_id']
 
                 resp = ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'GET')
                 vm_json = json.loads(resp.text)
 
-                vmvnics_detail = {"name": vm_json['data']['vm']['vmVnics'][0]['name'],
-                            "id": vm_json['data']['vm']['vmVnics'][0]['id'],
-                            "name": vm_json['data']['vm']['vmVnics'][1]['name'],
-                            "id": vm_json['data']['vm']['vmVnics'][0]['id']}
+                # Getting vmvnics /vmvnics/<vmvnic_id> detail in order to get and store vmvnic_vimobject_id
+                # TODO
 
+                dbman.save_vm((
+                  vm_id, vnf_id, vm_json['data']['vm']['vmVnics'][0]['name'], vm_json['data']['vm']['vmVnics'][0]['id'],
+                  '', vm_json['data']['vm']['vmVnics'][1]['id'], vm_json['data']['vm']['vmVnics'][1]['name'], ''))
 
                 # Checking if vmvnics
             else:
                 # TODO implement function
                 pass
         else:
-            logging.info('%s operation not handled' % source_api)
+            logger.info('%s operation not handled' % source_api)
 
         _exit('SUCCESS')
     except Exception as e: # Fix this

@@ -9,6 +9,8 @@ import logging
 import config as c
 from nso_exception import NSOConnectionError
 
+logger = logging.getLogger("cpower")
+
 CREATE_SERVICE = {
     "cpwr:servicecreate": {
         "customer-key": "",
@@ -92,8 +94,8 @@ def notify_nso(params):
     while count < c.retry_n:
         json_data = get_nso_json_data(params)
 
-        logging.info("Calling NSO API - PATCH /cpower/vnfconfig")
-        logging.debug("Sending data: %s" % json_data)
+        logger.info("Calling NSO API - PATCH /cpower/vnfconfig")
+        logger.debug("Sending data: %s" % json_data)
         nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri)
         h = {'Content-Type': 'application/vnd.yang.data+json'}
         try:
@@ -104,13 +106,13 @@ def notify_nso(params):
         except requests.exceptions.HTTPError:
             raise NSOConnectionError
         except requests.exceptions.Timeout:
-            logging.warning("NSO connection timeout, trying again...")
+            logger.warning("NSO connection timeout, trying again...")
             count += 1
         except requests.exceptions.RequestException:
-            logging.error("Something went very wrong during NSO API invocation...")
+            logger.error("Something went very wrong during NSO API invocation...")
             raise NSOConnectionError
         else:
             return resp
-    logging.error("Could not get a response from NSO. Connection Timeout.")
+    logger.error("Could not get a response from NSO. Connection Timeout.")
     raise NSOConnectionError
 
