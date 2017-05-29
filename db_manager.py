@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sqlite3
+import os.path
 
 
 class DBManager(object):
@@ -81,8 +82,8 @@ class DBManager(object):
     # VN GROUP table
 
     def save_vn_group(self, row, commit=True):
-        q = 'INSERT INTO vn_group("VNF_ID", "VN_LEFT_ID", "VN_LEFT_NAME", "VN_LEFT_VIMOBJECT_ID, "VN_RIGHT_ID",' \
-            ' "VN_RIGHT_NAME", VN_RIGHT_VIMOBJECT_ID) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        q = 'INSERT INTO vn_group("VNF_ID", "VN_LEFT_ID", "VN_LEFT_NAME", "VN_LEFT_VIMOBJECT_ID", "VN_RIGHT_ID",' \
+            ' "VN_RIGHT_NAME", "VN_RIGHT_VIMOBJECT_ID") VALUES (?, ?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
 
     def get_vnf(self, vnf_id):
@@ -90,7 +91,7 @@ class DBManager(object):
         self.query(q, (vnf_id, ))
 
     def save_vm(self, row, commit=True):
-        q = 'INSERT INTO vm VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        q = 'INSERT INTO vm VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
 
     def get_vm(self, vm_id):

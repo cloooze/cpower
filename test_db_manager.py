@@ -113,7 +113,7 @@ class DBManagerTest(unittest.TestCase):
         self.assertEqual('vnf_002', self.dbman.fetchone()['vnf_id'])
 
     def test_save_vn_group_01(self):
-        t = ('vn_001', 'vn_001', 'vn_001', 'vn_001', 'vn_001')
+        t = ('vn_001', 'vn_001', 'vn_001', 'vn_001', 'vn_001', 'vn_001', 'vn_001')
         self.dbman.save_vn_group(t)
         self.dbman.query('''SELECT * FROM vn_group WHERE vn_group_id=1''')
         self.assertEqual(1, self.dbman.fetchone()['vn_group_id'])
@@ -146,6 +146,12 @@ class DBManagerTest(unittest.TestCase):
         t_1 = ('ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001', 'ntw_001')
         self.dbman.save_network_service(t_1)
         self.dbman.get_network_service('ntw_002')
+        self.assertIsNone(self.dbman.fetchone())
+
+    def test_save_vm_01(self):
+        t_1 = ('vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001')
+        self.dbman.save_vm(t_1)
+        self.dbman.get_vm('vm_01')
         self.assertIsNone(self.dbman.fetchone())
 
 if __name__ == '__main__':

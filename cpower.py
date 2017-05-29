@@ -224,6 +224,7 @@ def main():
             # Getting VNF, VNs, VMVNICS detail
             vnf_id = get_order_item('createVapp', order_json)[0]['id']
             vm_id = get_order_item('createVm', order_json)[0]['id']
+            vm_name = get_order_item('createVm', order_json)[0]['name']
 
             vns = get_order_item('createVn', order_json)
             if vns is not None:
@@ -269,7 +270,7 @@ def main():
             dbman.save_vnf(vnf_row, False)
 
             # Saving VM info to db
-            vm_row = (vm_id, vnf_id, vmvnic_ids[0], vmvnic_names[0], '', vmvnic_ids[1], vmvnic_names[1], '')
+            vm_row = (vm_id, vnf_id, vm_name, vmvnic_ids[0], vmvnic_names[0], '', vmvnic_ids[1], vmvnic_names[1], '')
             dbman.save_vm(vm_row)
 
             # Modifying service
@@ -313,9 +314,9 @@ def main():
                 resp = ecm_util.invoke_ecm_api(vm_id, 'GET', c.ecm_service_api_vms)
                 vm_json = json.loads(resp.text)
 
-                vmvnics_detail = {"name": vm_json['data']['vm']['vmVnics'][0]['name'][-5:],
+                vmvnics_detail = {"name": vm_json['data']['vm']['vmVnics'][0]['name'],
                             "id": vm_json['data']['vm']['vmVnics'][0]['id'],
-                            "name": vm_json['data']['vm']['vmVnics'][1]['name'][-5:],
+                            "name": vm_json['data']['vm']['vmVnics'][1]['name'],
                             "id": vm_json['data']['vm']['vmVnics'][0]['id']}
 
 
