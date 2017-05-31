@@ -70,7 +70,7 @@ def get_order_items(order_item_name, json_data):
 
 
 def deserialize_json_file(file_name):
-    """Returns a dictionary object from a file JSON"""
+    """Returns a dictionary object from a JSON file"""
     with open(file_name) as f:
         data = json.load(f)
     return data
@@ -93,9 +93,6 @@ def main():
     handler = RotatingFileHandler('log/cpower.log', maxBytes=10*1000*1000, backupCount=10)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    #####
-    # script_dir = os.path.dirname(os.path.realpath(__file__))
-    # logging.basicConfig(filename=os.path.join(os.sep, script_dir, 'cpower.log'), level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
     logger.info('Starting script execution...')
 
@@ -118,7 +115,7 @@ def main():
         # Getting ECM order using the ORDER_ID env var
         order_resp = ecm_util.invoke_ecm_api(order_id, c.ecm_service_api_orders, 'GET')
     except ECMOrderResponseError as oe:
-        logger.error('ECM response status code not equal to 2**.')
+        logger.error('ECM response status code not 200.')
         _exit('FAILURE')
     except ECMConnectionError as ce:
         logger.exception('Unable to connect to ECM.')
@@ -129,15 +126,15 @@ def main():
     try:
         if source_api == 'createOrder':
             # Getting customer order params from getOrder response
-            custom_order_params = order_json['data']['order']['customOrderParams'] # check if it generates exception
+            create_order_cop = order_json['data']['order']['customOrderParams'] # check if it generates exception
 
             # Checking if order type is createService
             if get_order_items('createService', order_json) is not None:
-                customer_id = get_custom_order_param('Cust_Key', custom_order_params)
-                vnf_type = get_custom_order_param('vnf_type', custom_order_params)
-                rt_left = get_custom_order_param('rt-left', custom_order_params)
-                rt_right = get_custom_order_param('rt-right', custom_order_params)
-                rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
+                customer_id = get_custom_order_param('Cust_Key', create_order_cop)
+                vnf_type = get_custom_order_param('vnf_type', create_order_cop)
+                rt_left = get_custom_order_param('rt-left', create_order_cop)
+                rt_right = get_custom_order_param('rt-right', create_order_cop)
+                rt_mgmt = get_custom_order_param('rt-mgmt', create_order_cop)
 
                 operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
                 workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
@@ -290,11 +287,11 @@ def main():
             modify_service_json['vapps'][0]['id'] = vnf_id
 
             try:
-                resp = ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
-                if resp is not None:
-                    r = json.loads(resp.text)
-                    logger.info(r)
-                    order_id = r['data']['order']['id']
+                service_resp = ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+                if service_resp is not None:
+                    service_resp_json = json.loads(service_resp.text)
+                    logger.info(service_resp_json)
+                    order_id = service_resp_json['data']['order']['id']
                     dbman.save_order((order_id, customer_id, ''))
             except (ECMOrderResponseError, ECMConnectionError):
                 # TODO notify NSO What to Do here??
@@ -308,8 +305,10 @@ def main():
             # TODO
             pass
         elif source_api == 'modifyService':
+            #TODO FUNZIONA SOLO nel caso in cui source=workflow !!!!!!!FIX!!!!!!
             dbman.get_order(order_id)
             customer_id = dbman.fetchone()['customer_id']
+            ############
 
             operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
@@ -328,31 +327,41 @@ def main():
 
                 # Getting VM id from DB, and get vimObjectId from ECM (/vms API)
                 dbman.query('SELECT * FROM vm WHERE vnf_id=?', (vnf_id, ))
-                row = dbman.fetchone()['vm_id']
+                row = dbman.fetchone()
                 vm_id = row['vm_id']
                 vm_vnic1_id = row['vm_vnic1_id']
-                vm_vnic1_name = row['vm_vnic1_name']
                 vm_vnic2_id = row['vm_vnic2_id']
-                vm_vnic2_name = row['vm_vnic2_name']
-
-                #resp = ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'GET')
-                #vm_json = json.loads(resp.text)
 
                 # Getting vmvnics /vmvnics/<vmvnic_id> detail in order to get and store vmvnic_vimobject_id
                 resp = ecm_util.invoke_ecm_api(vm_vnic1_id, c.ecm_service_api_vmvnics, 'GET')
-                vmvnics_json = json.loads(resp)
+                vmvnics_json = json.loads(resp.text)
                 vm_vnic1_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
 
                 resp = ecm_util.invoke_ecm_api(vm_vnic2_id, c.ecm_service_api_vmvnics, 'GET')
-                vmvnics_json = json.loads(resp)
+                vmvnics_json = json.loads(resp.text)
                 vm_vnic2_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
 
-                dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vnf_id=?',
+                dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vm_id=?',
                             (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
-                # Checking if vmvnics
+                #TODO create/modify VLink
             else:
-                # TODO implement function
+                modify_service_cip = get_custom_input_params('modifyService', order_json)
+
+                customer_id = get_custom_input_param('Cust_Key', modify_service_cip)
+                vnf_type = get_custom_input_param('vnf_type', modify_service_cip)
+                rt_left = get_custom_input_param('rt-left', modify_service_cip) #???
+                rt_right = get_custom_input_param('rt-right', modify_service_cip) #???
+                rt_mgmt = get_custom_input_param('rt-mgmt', modify_service_cip) #???
+
+                # Checking if the needed custom order params are empty
+                empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left,
+                                            rt_right=rt_right,
+                                            rt_mgmt=rt_mgmt)
+
+                # NSO invierà l'ordine vuoto, solo i customInputParams saranno valorizzati, questi serviranno a me
+                # per fare il deployOvf come fatto sopra
+
                 pass
         else:
             logger.info('%s operation not handled' % source_api)
