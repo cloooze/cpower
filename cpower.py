@@ -43,7 +43,7 @@ def get_custom_order_param(s, json_data):
 
 
 def get_custom_input_params(order_item_name, json_data_compl):
-    order_item = get_order_item(order_item_name, json_data_compl)
+    order_item = get_order_items(order_item_name, json_data_compl)
     return order_item[0]['customInputParams']
 
 
@@ -54,7 +54,7 @@ def get_custom_input_param(param_name, json_data):
     return None
 
 
-def get_order_item(order_item_name, json_data):
+def get_order_items(order_item_name, json_data):
     """Returns a dictionary representing the single item orderItem that matches order_item_name from the ECM getOrder 
     JSON response. None is returned if there is no matching orderItem."""
     r = []
@@ -90,7 +90,7 @@ def main():
     logger.setLevel(logging.DEBUG)
     if not os.path.exists('log'):
         os.makedirs('log')
-    handler = RotatingFileHandler('log/cpower.log', maxBytes=1024, backupCount=10)
+    handler = RotatingFileHandler('log/cpower.log', maxBytes=10*1000*1000, backupCount=10)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     #####
@@ -121,7 +121,7 @@ def main():
         logger.error('ECM response status code not equal to 2**.')
         _exit('FAILURE')
     except ECMConnectionError as ce:
-        logging.exception('Unable to connect to ECM.')
+        logger.exception('Unable to connect to ECM.')
         _exit('FAILURE')
 
     order_json = json.loads(order_resp.text)
@@ -132,7 +132,7 @@ def main():
             custom_order_params = order_json['data']['order']['customOrderParams'] # check if it generates exception
 
             # Checking if order type is createService
-            if get_order_item('createService', order_json) is not None:
+            if get_order_items('createService', order_json) is not None:
                 customer_id = get_custom_order_param('Cust_Key', custom_order_params)
                 vnf_type = get_custom_order_param('vnf_type', custom_order_params)
                 rt_left = get_custom_order_param('rt-left', custom_order_params)
@@ -160,8 +160,8 @@ def main():
                     nso_util.notify_nso(workflow_error)
                     _exit('FAILURE')
 
-                service_id = get_order_item('createService', order_json)[0]['id']
-                service_name = get_order_item('createService', order_json)[0]['name']
+                service_id = get_order_items('createService', order_json)[0]['id']
+                service_name = get_order_items('createService', order_json)[0]['name']
 
                 # We got everything we need to proceed:
                 # Saving customer and network service info to DB. A check is not needed as NSO should send a
@@ -213,7 +213,7 @@ def main():
                     operation_error['operation'] = 'createVnf'
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
-            elif get_order_item('createVlink', order_json) is not None:
+            elif get_order_items('createVlink', order_json) is not None:
                 # TODO
                 pass
             else:
@@ -221,7 +221,7 @@ def main():
                 _exit('FAILURE')
         elif source_api == 'deployOvfPackage':
             # OVF structure 1 createVapp, 1 createVm, 3 createVmVnic, 0/2 createVn
-            customer_id = get_order_item('createVm', order_json)[0]['name'].split('-')[0]
+            customer_id = get_order_items('createVm', order_json)[0]['name'].split('-')[0]
 
             operation_error = {'operation': 'createVnf', 'result': 'failure', 'customer-key': customer_id}
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
@@ -232,11 +232,11 @@ def main():
                 _exit('FAILURE')
 
             # Getting VNF, VNs, VMVNICS detail
-            vnf_id = get_order_item('createVapp', order_json)[0]['id']
-            vm_id = get_order_item('createVm', order_json)[0]['id']
-            vm_name = get_order_item('createVm', order_json)[0]['name']
+            vnf_id = get_order_items('createVapp', order_json)[0]['id']
+            vm_id = get_order_items('createVm', order_json)[0]['id']
+            vm_name = get_order_items('createVm', order_json)[0]['name']
 
-            vns = get_order_item('createVn', order_json)
+            vns = get_order_items('createVn', order_json)
             if vns is not None:
                 for vn in vns:
                     if 'left' in vn['name']:
@@ -244,12 +244,13 @@ def main():
                     elif 'right' in vn['name']:
                         vn_right = vn
 
-            vmvnics = get_order_item('createVmVnic', order_json)
+            vmvnics = get_order_items('createVmVnic', order_json)
             vmvnic_ids = []
             vmvnic_names = []
             for vmvnic in vmvnics:
-                vmvnic_ids.append(vmvnic['id'])
-                vmvnic_names.append(vmvnic['name'])
+                if 'mgmt' not in vmvnic['name']:
+                    vmvnic_ids.append(vmvnic['id'])
+                    vmvnic_names.append(vmvnic['name'])
 
             # Getting ntw service id and vnftype for this customer (assuming that 1 customer can have max 1 ntw service)
             dbman.query('SELECT ntw_service_id, vnf_type FROM network_service ns WHERE ns.customer_id = ?', (customer_id, ))
@@ -318,7 +319,7 @@ def main():
                 _exit('FAILURE')
 
             if get_custom_input_param('source', get_custom_input_params('modifyService', order_json)) == 'workflow':
-                service = get_order_item('modifyService', order_json)[0]
+                service = get_order_items('modifyService', order_json)[0]
                 service_id = service['id']
                 vnf_id = service['vapps'][0]['id']
 
@@ -327,17 +328,27 @@ def main():
 
                 # Getting VM id from DB, and get vimObjectId from ECM (/vms API)
                 dbman.query('SELECT * FROM vm WHERE vnf_id=?', (vnf_id, ))
-                vm_id = dbman.fetchone()['vm_id']
+                row = dbman.fetchone()['vm_id']
+                vm_id = row['vm_id']
+                vm_vnic1_id = row['vm_vnic1_id']
+                vm_vnic1_name = row['vm_vnic1_name']
+                vm_vnic2_id = row['vm_vnic2_id']
+                vm_vnic2_name = row['vm_vnic2_name']
 
-                resp = ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'GET')
-                vm_json = json.loads(resp.text)
+                #resp = ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'GET')
+                #vm_json = json.loads(resp.text)
 
                 # Getting vmvnics /vmvnics/<vmvnic_id> detail in order to get and store vmvnic_vimobject_id
-                # TODO
+                resp = ecm_util.invoke_ecm_api(vm_vnic1_id, c.ecm_service_api_vmvnics, 'GET')
+                vmvnics_json = json.loads(resp)
+                vm_vnic1_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
 
-                dbman.save_vm((
-                  vm_id, vnf_id, vm_json['data']['vm']['vmVnics'][0]['name'], vm_json['data']['vm']['vmVnics'][0]['id'],
-                  '', vm_json['data']['vm']['vmVnics'][1]['id'], vm_json['data']['vm']['vmVnics'][1]['name'], ''))
+                resp = ecm_util.invoke_ecm_api(vm_vnic2_id, c.ecm_service_api_vmvnics, 'GET')
+                vmvnics_json = json.loads(resp)
+                vm_vnic2_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
+
+                dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vnf_id=?',
+                            (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
                 # Checking if vmvnics
             else:
@@ -349,7 +360,7 @@ def main():
         _exit('SUCCESS')
     except Exception as e: # Fix this
         dbman.rollback()
-        logging.exception('Something went wrong during script execution.')
+        logger.exception('Something went wrong during script execution.')
         _exit('FAILURE')
 
 
