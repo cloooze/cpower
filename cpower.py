@@ -377,8 +377,6 @@ def main():
                     except (ECMOrderResponseError, ECMConnectionError):
                         # TODO notify NSO
                         _exit('FAILURE')
-
-
             else:
                 modify_service_cip = get_custom_input_params('modifyService', order_json)
 
@@ -387,8 +385,39 @@ def main():
 
                 # Checking if the needed custom order params are empty
                 empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type)
-                #TODO continue
-                pass
+
+                if empty_cop is not None:
+                    error_message = "Custom order parameter '%s' not found or empty." % empty_cop
+                    logger.error(error_message)
+                    workflow_error['error-code'] = REQUEST_ERROR
+                    workflow_error['error-message'] = error_message
+                    nso_util.notify_nso(workflow_error)
+                    _exit('FAILURE')
+
+                try:
+                    ovf_package_id = get_ovf_package_id(vnf_type)
+                except VnfTypeException:
+                    error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
+                    logger.error(error_message)
+                    workflow_error['error-code'] = REQUEST_ERROR
+                    workflow_error['error-message'] = error_message
+                    nso_util.notify_nso(workflow_error)
+                    _exit('FAILURE')
+
+                deploy_ovf_package_file = './json/deploy_ovf_package.json'
+                ovf_package_json = deserialize_json_file(deploy_ovf_package_file)
+                ovf_package_json['tenantName'] = c.ecm_tenant_name
+                ovf_package_json['vdc']['id'] = c.ecm_vdc_id
+                ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
+
+                try:
+                    ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
+                except (ECMConnectionError, ECMOrderResponseError):
+                    # TODO notify NSO
+                    logger.error('Unable to contact ECM APIs northbound interface.')
+                    operation_error['operation'] = 'createVnf'
+                    nso_util.notify_nso(operation_error)
+                    _exit('FAILURE')
         else:
             logger.info('%s operation not handled' % source_api)
 

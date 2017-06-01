@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 import sqlite3
-import os.path
+import logging
+from logging.handlers import *
 
 
 class DBManager(object):
@@ -21,14 +22,24 @@ class DBManager(object):
         with open('create_db.sql') as create_db:
             self.cur.executescript(create_db.read())
 
+        self.logger = logging.getLogger('cpowersql')
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        self.logger.setLevel(logging.DEBUG)
+        handler = RotatingFileHandler('log/db_trace.log', maxBytes=10 * 1000 * 1000, backupCount=10)
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+
     def __del__(self):
         self.conn.close()
 
     def query(self, query, t=None, commit=True):
         if t is None:
             self.cur.execute(query, )
+            self.logger.info(query)
         else:
             self.cur.execute(query, t)
+            self.logger.info(query.replace('?', '%s') % t)
+
         if commit is True:
             self.conn.commit()
         return self.cur
