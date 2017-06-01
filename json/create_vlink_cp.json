@@ -1,0 +1,41 @@
+{
+	"tenantName": "Cpower-tenant",
+	"orderItems": [{
+		"orderItemId": "1",
+		"createVLink": {
+			"name": "",
+			"type": "L3VPN-E",
+			"service": {
+				"id": ""
+			},
+			"customInputParams": [{
+				"tag": "custom",
+				"value": ""
+			}]
+		}
+	},
+	{
+		"orderItemId": "2",
+		"createCp": {
+			"name": "",
+			"type": "Connection Point",
+			"addressType": "VMVNIC",
+			"address": "<nome_della_vmvnic_left",
+			"vapp": {
+				"id": ""
+			}
+		}
+	},
+	{
+		"orderItemId": "3",
+		"createCp": {
+			"name": "andrea777_VN_RIGHT",
+			"type": "Connection Point",
+			"addressType": "VMVNIC",
+			"address": "",
+			"vapp": {
+				"id": ""
+			}
+		}
+	}]
+}

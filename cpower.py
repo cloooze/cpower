@@ -285,9 +285,6 @@ def main():
             modify_service_file = './json/modify_service.json'
             modify_service_json = deserialize_json_file(modify_service_file)
             modify_service_json['vapps'][0]['id'] = vnf_id
-
-            # TODO CHECK THIS IF WORKS!!!!!
-            # Adding Cust_Key since it will be used in the next step (double check is NSO will send it too)
             modify_service_json['customInputParams'].append({"tag":"Cust_Key", "value":customer_id})
 
             try:
@@ -326,7 +323,9 @@ def main():
                 row = dbman.fetchone()
                 vm_id = row['vm_id']
                 vm_vnic1_id = row['vm_vnic1_id']
+                vm_vnic1_name = row['vm_vnic1_name']
                 vm_vnic2_id = row['vm_vnic2_id']
+                vm_vnic2_name = row['vm_vnic2_name']
 
                 # Getting vmvnics /vmvnics/<vmvnic_id> detail in order to get and store vmvnic_vimobject_id
                 resp = ecm_util.invoke_ecm_api(vm_vnic1_id, c.ecm_service_api_vmvnics, 'GET')
@@ -340,24 +339,55 @@ def main():
                 dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vm_id=?',
                             (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
-                #TODO create/modify VLink
+                #Checking if VLinks already exists
+                dbman.query('SELECT * FROM network_service WHERE customer_id=?', (customer_id, ))
+                row = dbman.fetchone()
+                vlink_id = row['vlink_id']
+
+                if not vlink_id:
+                    # Creating VLinks and CPs
+                    vlink_cp_json = deserialize_json_file('json/create_vlink_cp.json')
+                    vlink_cp_json['orderItems'][0]['createVlink']['name'] = customer_id + '_policy'
+                    vlink_cp_json['orderItems'][0]['createVlink']['service']['id'] = service_id
+
+                    extensions_input_create = deserialize_json_file('json/extensions_input_create.json')
+                    # TODO filling ex inputs
+                    vlink_cp_json['orderItems'][0]['createVlink']['customInputParams'][0]['value'] = str(extensions_input_create)
+
+                    vlink_cp_json['orderItems'][1]['createCp']['name'] = customer_id + '_VN_LEFT'
+                    vlink_cp_json['orderItems'][1]['createCp']['address'] = vm_vnic1_name
+                    vlink_cp_json['orderItems'][1]['createCp']['vapp']['id'] = vnf_id
+
+                    vlink_cp_json['orderItems'][2]['createCp']['name'] = customer_id + '_VN_RIGHT'
+                    vlink_cp_json['orderItems'][2]['createCp']['address'] = vm_vnic2_name
+                    vlink_cp_json['orderItems'][2]['createCp']['vapp']['id'] = vnf_id
+                    try:
+                        ecm_util.invoke_ecm_api(c.ecm_service_api_orders, 'POST', vlink_cp_json)
+                    except (ECMOrderResponseError, ECMConnectionError):
+                        # TODO notify NSO
+                        _exit('FAILURE')
+                else:
+                    # Modifying... TODO
+                    modify_vlink_json = deserialize_json_file('json/modify_vlink.json')
+                    extensions_input_modify = deserialize_json_file('json/extensions_input_modify.json')
+                    # TODO filliong ex inputs
+                    modify_vlink_json['customInputParams'][0]['value'] = str(extensions_input_modify)
+                    try:
+                        ecm_util.invoke_ecm_api(vlink_id, c.ecm_service_api_vlinks, 'PUT', modify_vlink_json)
+                    except (ECMOrderResponseError, ECMConnectionError):
+                        # TODO notify NSO
+                        _exit('FAILURE')
+
+
             else:
                 modify_service_cip = get_custom_input_params('modifyService', order_json)
 
                 customer_id = get_custom_input_param('Cust_Key', modify_service_cip)
                 vnf_type = get_custom_input_param('vnf_type', modify_service_cip)
-                rt_left = get_custom_input_param('rt-left', modify_service_cip) #???
-                rt_right = get_custom_input_param('rt-right', modify_service_cip) #???
-                rt_mgmt = get_custom_input_param('rt-mgmt', modify_service_cip) #???
 
                 # Checking if the needed custom order params are empty
-                empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left,
-                                            rt_right=rt_right,
-                                            rt_mgmt=rt_mgmt)
-
-                # NSO invierà l'ordine vuoto, solo i customInputParams saranno valorizzati, questi serviranno a me
-                # per fare il deployOvf come fatto sopra
-
+                empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type)
+                #TODO continue
                 pass
         else:
             logger.info('%s operation not handled' % source_api)
