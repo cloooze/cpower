@@ -258,9 +258,11 @@ def main():
             # Checking if there is already a VNF for this network service
             dbman.query('SELECT * FROM vnf WHERE ntw_service_id=?', (network_service_id, ))
             r = dbman.fetchone()
+            existing_vnf_id = None
             if r is not None:
                 # Move vnf_position to 2
                 dbman.query('UPDATE vnf SET vnf_position=? WHERE vnf.ntw_service_id=?', ('2', network_service_id), False)
+                existing_vnf_id = r['vnf_id']
             else:
                 # Saving VN group info to db
                 vn_left_resp = ecm_util.invoke_ecm_api(vn_left['id'], c.ecm_service_api_vns, 'GET')
@@ -286,6 +288,8 @@ def main():
             modify_service_json = deserialize_json_file(modify_service_file)
             modify_service_json['vapps'][0]['id'] = vnf_id
             modify_service_json['customInputParams'].append({"tag":"Cust_Key", "value":customer_id})
+            if existing_vnf_id is not None:
+                modify_service_json['vapps'].append({"id": existing_vnf_id})
 
             try:
                 service_resp = ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)

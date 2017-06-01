@@ -32,5 +32,5 @@ ecm_vdc_id = "59d1ace2-76bd-4331-b0d0-39503086038f"
 # OVF packages IDs mapping
 ovf_package_fortinet_1 = "378cb684-f7dc-479c-a198-afafd8a503a1"
 ovf_package_fortinet_2 = ""
-ovf_package_dpi_1 = ""
-ovf_package_dpi_1 = ""
+ovf_package_dpi_1 = "e749a0a9-d132-4ed5-90a6-fd6aaf1e4b2e"
+ovf_package_dpi_2 = ""
