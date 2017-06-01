@@ -9,3 +9,4 @@ rm -r custom_workflow
 mv cpower-master custom_workflow
 cd custom_workflow
 chmod +x *.py
+chmod +x *.sh

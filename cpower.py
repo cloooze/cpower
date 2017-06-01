@@ -263,17 +263,17 @@ def main():
                 # Move vnf_position to 2
                 dbman.query('UPDATE vnf SET vnf_position=? WHERE vnf.ntw_service_id=?', ('2', network_service_id), False)
                 existing_vnf_id = r['vnf_id']
-            else:
-                # Saving VN group info to db
-                vn_left_resp = ecm_util.invoke_ecm_api(vn_left['id'], c.ecm_service_api_vns, 'GET')
-                vn_left_resp_json = json.loads(vn_left_resp.text)
-                vn_right_resp = ecm_util.invoke_ecm_api(vn_right['id'], c.ecm_service_api_vns, 'GET')
-                vn_right_resp_json = json.loads(vn_right_resp.text)
 
-                vn_group_row = (vnf_id, vn_left['id'], vn_left['name'], vn_left_resp_json['data']['vn']['vimObjectId'],
-                                vn_right['id'], vn_right['name'], vn_right_resp_json['data']['vn']['vimObjectId'])
+            # Saving VN group info to db
+            vn_left_resp = ecm_util.invoke_ecm_api(vn_left['id'], c.ecm_service_api_vns, 'GET')
+            vn_left_resp_json = json.loads(vn_left_resp.text)
+            vn_right_resp = ecm_util.invoke_ecm_api(vn_right['id'], c.ecm_service_api_vns, 'GET')
+            vn_right_resp_json = json.loads(vn_right_resp.text)
 
-                dbman.save_vn_group(vn_group_row, False)
+            vn_group_row = (vnf_id, vn_left['id'], vn_left['name'], vn_left_resp_json['data']['vn']['vimObjectId'],
+                            vn_right['id'], vn_right['name'], vn_right_resp_json['data']['vn']['vimObjectId'])
+
+            dbman.save_vn_group(vn_group_row, False)
 
             # Saving VNF info to db
             vnf_row = (vnf_id, network_service_id, vnf_type, '1', 'NO')
@@ -281,7 +281,7 @@ def main():
 
             # Saving VM info to db
             vm_row = (vm_id, vnf_id, vm_name, vmvnic_ids[0], vmvnic_names[0], '', vmvnic_ids[1], vmvnic_names[1], '')
-            dbman.save_vm(vm_row)
+            dbman.save_vm(vm_row, False)
 
             # Modifying service
             modify_service_file = './json/modify_service.json'
