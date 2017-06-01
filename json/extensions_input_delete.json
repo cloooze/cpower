@@ -1,0 +1,17 @@
+{
+	"extensions-input": {
+		"service-instance": {
+			"operation": "",
+			"si_name": "",
+			"port-tuple": {
+				"name": "",
+				"si_name": ""
+			}
+		},
+		"network-policy": {
+			"operation": "",
+			"policy_name": "",
+			"policy-rule": []
+		}
+	}
+}

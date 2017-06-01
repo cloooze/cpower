@@ -6,3 +6,6 @@
 
 class NSOConnectionError(Exception):
     pass
+
+class VnfTypeException(Exception):
+    pass

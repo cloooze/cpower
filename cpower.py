@@ -10,6 +10,7 @@ import ecm_util as ecm_util
 import nso_util as nso_util
 from db_manager import DBManager
 from ecm_exception import *
+from nso_exception import *
 import config as c
 
 logger = logging.getLogger('cpower')
@@ -75,6 +76,14 @@ def deserialize_json_file(file_name):
         data = json.load(f)
     return data
 
+
+def get_ovf_package_id(vnf_type):
+    if vnf_type == 'csr1000':
+        return c.ovf_package_dpi_1
+    elif vnf_type == 'fortinet':
+        return c.ovf_package_fortinet_1
+    else:
+        raise VnfTypeException
 
 def _exit(exit_mess):
     e = {'SUCCESS': 0, 'FAILURE': 1}
@@ -167,7 +176,7 @@ def main():
                 try:
                     dbman.save_customer((customer_id, customer_id + '_name'))
                 except sqlite3.IntegrityError:
-                    # Customer already in DB, it's ok.
+                    # Customer already in DB, it shouldn't be possible for createService operation
                     pass
 
                 ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
@@ -177,11 +186,9 @@ def main():
                 # Loading the right ovf package id depending on the requested VNF type.
                 # It is loaded the ovf package 1 as we are in the 'createService' (meaning that the first VNF for the
                 # service is being requested
-                if vnf_type == 'csr1000':
-                    ovf_package_id = c.ovf_package_dpi_1
-                elif vnf_type == 'fortinet':
-                    ovf_package_id = c.ovf_package_fortinet_1
-                else:
+                try:
+                    ovf_package_id = get_ovf_package_id(vnf_type)
+                except VnfTypeException:
                     error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
                     logger.error(error_message)
                     workflow_error['error-code'] = REQUEST_ERROR
@@ -190,17 +197,10 @@ def main():
                     _exit('FAILURE')
 
                 deploy_ovf_package_file = './json/deploy_ovf_package.json'
-                try:
-                    ovf_package_json = deserialize_json_file(deploy_ovf_package_file)
-                    ovf_package_json['tenantName'] = c.ecm_tenant_name
-                    ovf_package_json['vdc']['id'] = c.ecm_vdc_id
-                    ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
-                except IOError:
-                    logger.error('No such file or directory: %s' % deploy_ovf_package_file)
-                    workflow_error['error-code'] = INTERNAL_ERROR
-                    workflow_error['error-message'] = 'Internal custom workflow error.'
-                    nso_util.notify_nso(workflow_error)
-                    _exit('FAILURE')
+                ovf_package_json = deserialize_json_file(deploy_ovf_package_file)
+                ovf_package_json['tenantName'] = c.ecm_tenant_name
+                ovf_package_json['vdc']['id'] = c.ecm_vdc_id
+                ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
 
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
@@ -286,13 +286,12 @@ def main():
             modify_service_json = deserialize_json_file(modify_service_file)
             modify_service_json['vapps'][0]['id'] = vnf_id
 
+            # TODO CHECK THIS IF WORKS!!!!!
+            # Adding Cust_Key since it will be used in the next step (double check is NSO will send it too)
+            modify_service_json['customInputParams'].append({"tag":"Cust_Key", "value":customer_id})
+
             try:
                 service_resp = ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
-                if service_resp is not None:
-                    service_resp_json = json.loads(service_resp.text)
-                    logger.info(service_resp_json)
-                    order_id = service_resp_json['data']['order']['id']
-                    dbman.save_order((order_id, customer_id, ''))
             except (ECMOrderResponseError, ECMConnectionError):
                 # TODO notify NSO What to Do here??
                 _exit('FAILURE')
@@ -305,10 +304,7 @@ def main():
             # TODO
             pass
         elif source_api == 'modifyService':
-            #TODO FUNZIONA SOLO nel caso in cui source=workflow !!!!!!!FIX!!!!!!
-            dbman.get_order(order_id)
-            customer_id = dbman.fetchone()['customer_id']
-            ############
+            customer_id = get_custom_input_param('Cust_Key', get_custom_input_params('modifyService', order_json))
 
             operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
