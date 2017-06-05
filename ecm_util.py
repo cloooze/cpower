@@ -47,6 +47,7 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
             else:
                 return None
             resp.raise_for_status()
+            check_ecm_resp(resp)
         except requests.exceptions.HTTPError:
             raise ECMConnectionError('HTTP response code is not 200')
         except requests.exceptions.Timeout:
@@ -55,7 +56,6 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
         except requests.exceptions.RequestException:
             raise ECMConnectionError('Could not get a response from ECM.')
         else:
-            logger.info("Response received: %s" % resp.status_code)
             return resp
     raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
 
@@ -72,6 +72,7 @@ def deploy_ovf_package(ovf_package_id, json_data):
                                  verify=False)
             logger.debug("Sending data: %s" % json_data)
             resp.raise_for_status()
+            check_ecm_resp(resp)
         except requests.exceptions.HTTPError:
             raise ECMConnectionError('HTTP response code is not 200')
         except requests.exceptions.Timeout:
@@ -82,4 +83,10 @@ def deploy_ovf_package(ovf_package_id, json_data):
         else:
             return resp
     raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
+
+
+def check_ecm_resp(resp):
+    resp_json = json.loads(resp.text)
+    if resp_json['status']['resStatus'] != 'SUCCESS':
+        raise ECMReqStatusError(resp_json['status']['msgs'])
 

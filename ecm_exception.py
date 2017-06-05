@@ -13,3 +13,8 @@ class ECMConnectionError(Exception):
     """There was (any) connection error while handling the request. """
     pass
 
+
+class ECMReqStatusError(Exception):
+    """reqStatus in response is not SUCCESS"""
+    pass
+

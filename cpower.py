@@ -96,7 +96,7 @@ def _exit(exit_mess):
 
 def main():
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    logger.setLevel(c.logging_level)
+    logger.setLevel(logging.DEBUG)
     if not os.path.exists('log'):
         os.makedirs('log')
     handler = RotatingFileHandler('log/cpower.log', maxBytes=10*1000*1000, backupCount=10)
@@ -203,9 +203,11 @@ def main():
                 logger.info('Deploying OVF Package %s' % ovf_package_id)
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
+                except ECMReqStatusError as rs:
+                    logger.exception(rs)
                 except ECMConnectionError as e:
-                    # TODO notify NSO
                     logger.exception(e)
+                finally:
                     operation_error['operation'] = 'createVnf'
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
@@ -266,11 +268,20 @@ def main():
                 dbman.query('UPDATE vnf SET vnf_position=? WHERE vnf.ntw_service_id=?', ('2', service_id), False)
                 existing_vnf_id = row['vnf_id']
 
-            # Saving VN group info to db
-            vn_left_resp = ecm_util.invoke_ecm_api(vn_left['id'], c.ecm_service_api_vns, 'GET')
-            vn_left_resp_json = json.loads(vn_left_resp.text)
-            vn_right_resp = ecm_util.invoke_ecm_api(vn_right['id'], c.ecm_service_api_vns, 'GET')
-            vn_right_resp_json = json.loads(vn_right_resp.text)
+            try:
+                # Saving VN group info to db
+                vn_left_resp = ecm_util.invoke_ecm_api(vn_left['id'], c.ecm_service_api_vns, 'GET')
+                vn_left_resp_json = json.loads(vn_left_resp.text)
+
+                vn_right_resp = ecm_util.invoke_ecm_api(vn_right['id'], c.ecm_service_api_vns, 'GET')
+                vn_right_resp_json = json.loads(vn_right_resp.text)
+            except ECMReqStatusError as rs:
+                logger.exception(rs)
+            except ECMConnectionError as e:
+                logger.exception(e)
+            finally:
+                nso_util.notify_nso(operation_error)
+                _exit('FAILURE')
 
             vn_group_row = (vnf_id, vn_left['id'], vn_left['name'], vn_left_resp_json['data']['vn']['vimObjectId'],
                             vn_right['id'], vn_right['name'], vn_right_resp_json['data']['vn']['vimObjectId'])
@@ -297,10 +308,14 @@ def main():
                 modify_service_json['vapps'].append({"id": existing_vnf_id})
 
             try:
-                service_resp = ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+                ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+            except ECMReqStatusError as rs:
+                logger.exception(rs)
             except ECMConnectionError as e:
                 logger.exception(e)
-                # TODO notify NSO What to Do here??
+            finally:
+                operation_error['operation'] = 'createVnf'
+                nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
 
             dbman.commit()
@@ -334,14 +349,22 @@ def main():
                 vm_vnic2_id = row['vm_vnic2_id']
                 vm_vnic2_name = row['vm_vnic2_name']
 
-                # Getting vmvnics /vmvnics/<vmvnic_id> detail in order to get and store vmvnic_vimobject_id
-                resp = ecm_util.invoke_ecm_api(vm_vnic1_id, c.ecm_service_api_vmvnics, 'GET')
-                vmvnics_json = json.loads(resp.text)
-                vm_vnic1_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
+                try:
+                    # Getting vmvnics /vmvnics/<vmvnic_id> detail in order to get and store vmvnic_vimobject_id
+                    resp = ecm_util.invoke_ecm_api(vm_vnic1_id, c.ecm_service_api_vmvnics, 'GET')
+                    vmvnics_json = json.loads(resp.text)
+                    vm_vnic1_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
 
-                resp = ecm_util.invoke_ecm_api(vm_vnic2_id, c.ecm_service_api_vmvnics, 'GET')
-                vmvnics_json = json.loads(resp.text)
-                vm_vnic2_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
+                    resp = ecm_util.invoke_ecm_api(vm_vnic2_id, c.ecm_service_api_vmvnics, 'GET')
+                    vmvnics_json = json.loads(resp.text)
+                    vm_vnic2_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
+                except ECMReqStatusError as rs:
+                    logger.exception(rs)
+                except ECMConnectionError as e:
+                    logger.exception(e)
+                finally:
+                    nso_util.notify_nso(operation_error)
+                    _exit('FAILURE')
 
                 dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vm_id=?',
                             (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
@@ -382,9 +405,12 @@ def main():
                     modify_vlink_json['customInputParams'][0]['value'] = str(extensions_input_modify)
                     try:
                         ecm_util.invoke_ecm_api(vlink_id, c.ecm_service_api_vlinks, 'PUT', modify_vlink_json)
+                    except ECMReqStatusError as rs:
+                        logger.exception(rs)
                     except ECMConnectionError as e:
                         logger.exception(e)
-                        # TODO notify NSO
+                    finally:
+                        nso_util.notify_nso(operation_error)
                         _exit('FAILURE')
             else:
                 modify_service_cip = get_custom_input_params('modifyService', order_json)
@@ -423,10 +449,11 @@ def main():
 
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
+                except ECMReqStatusError as rs:
+                    logger.exception(rs)
                 except ECMConnectionError as e:
                     logger.exception(e)
-                    # TODO notify NSO
-                    operation_error['operation'] = 'createVnf'
+                finally:
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
         elif source_api == 'deleteService':
@@ -454,9 +481,11 @@ def main():
             try:
                 ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_services, 'DELETE')
                 ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_services, 'DELETE')
+            except ECMReqStatusError as rs:
+                logger.exception(rs)
             except ECMConnectionError as e:
                 logger.exception(e)
-                # TODO notify NSO
+            finally:
                 operation_error['operation'] = 'deleteVn'
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')

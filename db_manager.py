@@ -25,7 +25,7 @@ class DBManager(object):
 
         self.logger = logging.getLogger('cpowersql')
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        self.logger.setLevel(c.logging_level)
+        self.logger.setLevel(logging.DEBUG)
         handler = RotatingFileHandler('log/db_trace.log', maxBytes=10 * 1000 * 1000, backupCount=10)
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
