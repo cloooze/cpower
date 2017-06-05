@@ -48,17 +48,16 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
                 return None
             resp.raise_for_status()
         except requests.exceptions.HTTPError:
-            raise ECMOrderResponseError
+            raise ECMConnectionError('HTTP response code is not 200')
         except requests.exceptions.Timeout:
             logger.warning("ECM connection timeout, trying again...")
             count += 1
         except requests.exceptions.RequestException:
-            raise ECMConnectionError
+            raise ECMConnectionError('Could not get a response from ECM.')
         else:
             logger.info("Response received: %s" % resp.status_code)
             return resp
-    logger.error("Could not get a response from ECM. Connection Timeout.")
-    raise ECMConnectionError
+    raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
 
 
 def deploy_ovf_package(ovf_package_id, json_data):
@@ -74,32 +73,13 @@ def deploy_ovf_package(ovf_package_id, json_data):
             logger.debug("Sending data: %s" % json_data)
             resp.raise_for_status()
         except requests.exceptions.HTTPError:
-            raise ECMOrderResponseError
+            raise ECMConnectionError('HTTP response code is not 200')
         except requests.exceptions.Timeout:
             logger.warning("ECM connection timeout, trying again...")
             count += 1
         except requests.exceptions.RequestException:
-            logger.error("Something went very wrong during ECM API invocation...")
-            raise ECMConnectionError
+            raise ECMConnectionError('Could not get a response from ECM.')
         else:
             return resp
-    logger.error("Could not get a response from ECM. Connection Timeout.")
-    raise ECMConnectionError
+    raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
 
-# Deprecated
-def check_ecm_resp(resp):
-    json_resp = json.loads(resp.text)
-    try:
-        order_req_status = json_resp['data']['order']['orderReqStatus']
-    except KeyError:
-        raise KeyError('Could not get data from JSON: [\'data\'][\'order\'][\'orderReqStatus\']')
-
-
-# Use order_status got from env var instead of this function
-def check_ecm_order_status(resp):
-    json_resp = json.loads(resp.text)
-    order_req_status = json_resp['data']['order']['orderReqStatus']
-    if order_req_status == 'COM':
-        return
-    else:
-        raise ECMOrderStatusError('ECM order status not COMPLETE.')

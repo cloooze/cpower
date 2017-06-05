@@ -3,6 +3,7 @@
 import sqlite3
 import logging
 from logging.handlers import *
+import config as c
 
 
 class DBManager(object):
@@ -24,7 +25,7 @@ class DBManager(object):
 
         self.logger = logging.getLogger('cpowersql')
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(c.logging_level)
         handler = RotatingFileHandler('log/db_trace.log', maxBytes=10 * 1000 * 1000, backupCount=10)
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
@@ -96,6 +97,10 @@ class DBManager(object):
         q = 'INSERT INTO vn_group("VNF_ID", "VN_LEFT_ID", "VN_LEFT_NAME", "VN_LEFT_VIMOBJECT_ID", "VN_RIGHT_ID",' \
             ' "VN_RIGHT_NAME", "VN_RIGHT_VIMOBJECT_ID") VALUES (?, ?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
+
+    def delete_vn_group(self, condition, commit=True):
+        q = 'DELETE FROM vn_group WHERE vn_group_id=?'
+        self.query(q, condition, commit)
 
     def get_vnf(self, vnf_id):
         q = 'SELECT * FROM vnf WHERE vnf_id=?'

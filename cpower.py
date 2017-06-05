@@ -96,7 +96,7 @@ def _exit(exit_mess):
 
 def main():
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(c.logging_level)
     if not os.path.exists('log'):
         os.makedirs('log')
     handler = RotatingFileHandler('log/cpower.log', maxBytes=10*1000*1000, backupCount=10)
@@ -123,11 +123,9 @@ def main():
                      % (order_id, source_api, order_status))
         # Getting ECM order using the ORDER_ID env var
         order_resp = ecm_util.invoke_ecm_api(order_id, c.ecm_service_api_orders, 'GET')
-    except ECMOrderResponseError as oe:
-        logger.error('ECM response status code not 200.')
-        _exit('FAILURE')
-    except ECMConnectionError as ce:
-        logger.exception('Unable to connect to ECM.')
+    except ECMConnectionError as e:
+        logger.exception(e)
+        # TODO notify NSO
         _exit('FAILURE')
 
     order_json = json.loads(order_resp.text)
@@ -202,14 +200,16 @@ def main():
                 ovf_package_json['vdc']['id'] = c.ecm_vdc_id
                 ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
 
+                logger.info('Deploying OVF Package %s' % ovf_package_id)
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
-                except (ECMConnectionError, ECMOrderResponseError):
+                except ECMConnectionError as e:
                     # TODO notify NSO
-                    logger.error('Unable to contact ECM APIs northbound interface.')
+                    logger.exception(e)
                     operation_error['operation'] = 'createVnf'
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
+
             elif get_order_items('createVlink', order_json) is not None:
                 # TODO
                 pass
@@ -227,6 +227,8 @@ def main():
                 logger.error(order_json['data']['order']['orderMsgs'])
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
+
+            logger.info('OVF Package succesfully deployed.')
 
             # Getting VNF, VNs, VMVNICS detail
             vnf_id = get_order_items('createVapp', order_json)[0]['id']
@@ -252,17 +254,17 @@ def main():
             # Getting ntw service id and vnftype for this customer (assuming that 1 customer can have max 1 ntw service)
             dbman.query('SELECT ntw_service_id, vnf_type FROM network_service ns WHERE ns.customer_id = ?', (customer_id, ))
             row = dbman.fetchone()
-            network_service_id = row['ntw_service_id']
+            service_id = row['ntw_service_id']
             vnf_type = row['vnf_type'] # ???
 
             # Checking if there is already a VNF for this network service
-            dbman.query('SELECT * FROM vnf WHERE ntw_service_id=?', (network_service_id, ))
-            r = dbman.fetchone()
+            dbman.query('SELECT * FROM vnf WHERE ntw_service_id=?', (service_id, ))
+            row = dbman.fetchone()
             existing_vnf_id = None
-            if r is not None:
+            if row is not None:
                 # Move vnf_position to 2
-                dbman.query('UPDATE vnf SET vnf_position=? WHERE vnf.ntw_service_id=?', ('2', network_service_id), False)
-                existing_vnf_id = r['vnf_id']
+                dbman.query('UPDATE vnf SET vnf_position=? WHERE vnf.ntw_service_id=?', ('2', service_id), False)
+                existing_vnf_id = row['vnf_id']
 
             # Saving VN group info to db
             vn_left_resp = ecm_util.invoke_ecm_api(vn_left['id'], c.ecm_service_api_vns, 'GET')
@@ -276,12 +278,15 @@ def main():
             dbman.save_vn_group(vn_group_row, False)
 
             # Saving VNF info to db
-            vnf_row = (vnf_id, network_service_id, vnf_type, '1', 'NO')
+            vnf_row = (vnf_id, service_id, vnf_type, '1', 'NO')
             dbman.save_vnf(vnf_row, False)
 
             # Saving VM info to db
             vm_row = (vm_id, vnf_id, vm_name, vmvnic_ids[0], vmvnic_names[0], '', vmvnic_ids[1], vmvnic_names[1], '')
             dbman.save_vm(vm_row, False)
+
+            logger.info('Information related to OVF Package saved into DB.')
+            logger.info('Associating Network Service to VNF...')
 
             # Modifying service
             modify_service_file = './json/modify_service.json'
@@ -292,16 +297,14 @@ def main():
                 modify_service_json['vapps'].append({"id": existing_vnf_id})
 
             try:
-                service_resp = ecm_util.invoke_ecm_api(network_service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
-            except (ECMOrderResponseError, ECMConnectionError):
+                service_resp = ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+            except ECMConnectionError as e:
+                logger.exception(e)
                 # TODO notify NSO What to Do here??
                 _exit('FAILURE')
 
             dbman.commit()
         elif source_api == 'modifyVapp':
-            # TODO
-            pass
-        elif source_api == 'deleteService':
             # TODO
             pass
         elif source_api == 'modifyService':
@@ -346,9 +349,8 @@ def main():
                 #Checking if VLinks already exists
                 dbman.query('SELECT * FROM network_service WHERE customer_id=?', (customer_id, ))
                 row = dbman.fetchone()
-                vlink_id = row['vlink_id']
 
-                if not vlink_id:
+                if not row:
                     # Creating VLinks and CPs
                     vlink_cp_json = deserialize_json_file('json/create_vlink_cp.json')
                     vlink_cp_json['orderItems'][0]['createVlink']['name'] = customer_id + '_policy'
@@ -367,18 +369,21 @@ def main():
                     vlink_cp_json['orderItems'][2]['createCp']['vapp']['id'] = vnf_id
                     try:
                         ecm_util.invoke_ecm_api(c.ecm_service_api_orders, 'POST', vlink_cp_json)
-                    except (ECMOrderResponseError, ECMConnectionError):
+                    except ECMConnectionError as e:
+                        logger.exception(e)
                         # TODO notify NSO
                         _exit('FAILURE')
                 else:
                     # Modifying... TODO
+                    vlink_id = row['vlink_id']
                     modify_vlink_json = deserialize_json_file('json/modify_vlink.json')
                     extensions_input_modify = deserialize_json_file('json/extensions_input_modify.json')
                     # TODO filliong ex inputs
                     modify_vlink_json['customInputParams'][0]['value'] = str(extensions_input_modify)
                     try:
                         ecm_util.invoke_ecm_api(vlink_id, c.ecm_service_api_vlinks, 'PUT', modify_vlink_json)
-                    except (ECMOrderResponseError, ECMConnectionError):
+                    except ECMConnectionError as e:
+                        logger.exception(e)
                         # TODO notify NSO
                         _exit('FAILURE')
             else:
@@ -414,14 +419,61 @@ def main():
                 ovf_package_json['vdc']['id'] = c.ecm_vdc_id
                 ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
 
+                logger.info('Deploying OVF Package %s' % ovf_package_id)
+
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
-                except (ECMConnectionError, ECMOrderResponseError):
+                except ECMConnectionError as e:
+                    logger.exception(e)
                     # TODO notify NSO
-                    logger.error('Unable to contact ECM APIs northbound interface.')
                     operation_error['operation'] = 'createVnf'
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
+        elif source_api == 'deleteService':
+            service_id = get_order_items('deleteService', order_json)[0]['id']
+
+            dbman.query('SELECT customer_id FROM network_service ns WHERE ns.ntw_service_id=?', (service_id,))
+            row = dbman.fetchone()
+            customer_id = row['customer_id']
+
+            operation_error = {'operation': 'deleteService', 'result': 'failure', 'customer-key': customer_id}
+            workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
+
+            if order_status == 'ERR':
+                logger.error(order_json['data']['order']['orderMsgs'])
+                nso_util.notify_nso(operation_error)
+                _exit('FAILURE')
+
+            dbman.query('SELECT vn_left_id, vn_right_id FROM network_service ns, vnf, vn_group vn WHERE '
+                        'ns.ntw_service_id=? and ns.ntw_service_id=vnf.ntw_service_id and vn.vnf_id=vnf.vnf_id',
+                        (service_id, ))
+            row = dbman.fetchone()
+            vn_left_id = row['vn_left_id']
+            vn_right_id = row['vn_right_id']
+
+            try:
+                ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_services, 'DELETE')
+                ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_services, 'DELETE')
+            except ECMConnectionError as e:
+                logger.exception(e)
+                # TODO notify NSO
+                operation_error['operation'] = 'deleteVn'
+                nso_util.notify_nso(operation_error)
+                _exit('FAILURE')
+        elif source_api == 'deleteVn':
+            # remember that the flow will end up here twice as the deleteVn are two
+            vn_id = get_order_items('deleteVn', order_json)[0]['id']
+            dbman.query('SELECT vn_group_id FROM vn_group vn WHERE vn.vn_left_id=? OR vn.vn_right_id=?', (vn_id,))
+            row = dbman.fetchone()
+
+            if not row:
+                logger.info('Vn group associated to VNs %s already deleted.' % (vn_id))
+            else:
+                vn_group_id = row['vn_group_id']
+                dbman.delete_vn_group(vn_group_id)
+
+            #TODO notify NSO success
+
         else:
             logger.info('%s operation not handled' % source_api)
 

@@ -9,22 +9,7 @@ class ECMException(Exception):
         super(ECMException, self).__init__(message, obj)
 
 
-'''Used when order status is not COM'''
-
-
-class ECMOrderStatusError(Exception):
-    pass
-
-
-'''Used when ECM http status code of response is not 200'''
-
-
-class ECMOrderResponseError(Exception):
-    pass
-
-
-'''Thrown when it's impossible to get a response from ECM'''
-
-
 class ECMConnectionError(Exception):
+    """There was (any) connection error while handling the request. """
     pass
+

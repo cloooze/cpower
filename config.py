@@ -4,6 +4,8 @@ nso_service_timeout = 10
 nso_auth_username = "admin"
 nso_auth_password = "admin"
 
+logging_level = "DEBUG"
+
 retry_n = 3
 
 delete_sleep_time_sec = 20

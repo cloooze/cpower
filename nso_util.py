@@ -75,7 +75,7 @@ def get_nso_json_data(params):
             CREATE_VNF['cpwr:vnfcreate']['vnf-info']['mgmt-ip'] = params['mgmt-ip']
             CREATE_VNF['cpwr:vnfcreate']['vnf-info']['left-ip'] = params['left-ip']
             CREATE_VNF['cpwr:vnfcreate']['vnf-info']['right-ip'] = params['right-ip']
-        return CREATE_SERVICE
+        return CREATE_VNF
     if params['operation'] == 'deleteVnf':
         DELETE_VNF['cpwr:vnfdelete']['customer-key'] = params['customer-key']
         DELETE_VNF['cpwr:vnfdelete']['vnf-id'] = params['vnf-id']
