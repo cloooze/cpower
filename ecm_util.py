@@ -23,7 +23,7 @@ def get_ecm_api_auth():
 def invoke_ecm_api(param, api, http_verb, json_data=''):
     count = 0
     while count < c.retry_n:
-        logger.info('Invoking ECM NB APIs %s%s - %s ' % (api, param, http_verb))
+        logger.info('Invoking ECM API %s%s - %s ' % (api, param, http_verb))
         try:
             if http_verb == 'GET':
                 resp = requests.get('%s%s%s' % (c.ecm_server_address, api, param),
@@ -63,7 +63,7 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
 def deploy_ovf_package(ovf_package_id, json_data):
     count = 0
     while count < c.retry_n:
-        logger.info('Invoking ECM NB APIs /ecm_service/ovfpackages/%s/deploy - POST' % ovf_package_id)
+        logger.info('Invoking ECM API /ecm_service/ovfpackages/%s/deploy - POST' % ovf_package_id)
         try:
             resp = requests.post('%s%s%s/deploy' % (c.ecm_server_address, c.ecm_service_api_ovfpackage, ovf_package_id),
                                  data=json.dumps(json_data),

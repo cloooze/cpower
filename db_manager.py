@@ -7,6 +7,9 @@ import config as c
 
 
 class DBManager(object):
+    
+    logger = logging.getLogger('cpowersql')
+    
     def __init__(self, db_name=None):
         if db_name is None:
             self.conn = sqlite3.connect(':memory:')
@@ -23,15 +26,18 @@ class DBManager(object):
         with open('create_db.sql') as create_db:
             self.cur.executescript(create_db.read())
 
-        self.logger = logging.getLogger('cpowersql')
-        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        self.logger.setLevel(logging.DEBUG)
-        handler = RotatingFileHandler('log/db_trace.log', maxBytes=10 * 1000 * 1000, backupCount=10)
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
+        DBManager.setup_logging()
 
     def __del__(self):
         self.conn.close()
+
+    @staticmethod
+    def setup_logging():
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        DBManager.logger.setLevel(logging.DEBUG)
+        handler = RotatingFileHandler('log/db_trace.log', maxBytes=10485760, backupCount=10)
+        handler.setFormatter(formatter)
+        DBManager.logger.addHandler(handler)
 
     def query(self, query, t=None, commit=True):
         if t is None:

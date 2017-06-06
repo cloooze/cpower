@@ -6,6 +6,7 @@ import sys
 import json
 from logging.handlers import *
 import logging
+import logging.config
 import ecm_util as ecm_util
 import nso_util as nso_util
 from db_manager import DBManager
@@ -85,6 +86,7 @@ def get_ovf_package_id(vnf_type):
     else:
         raise VnfTypeException
 
+
 def _exit(exit_mess):
     e = {'SUCCESS': 0, 'FAILURE': 1}
     logger.info('End of script execution - %s' % exit_mess)
@@ -94,15 +96,18 @@ def _exit(exit_mess):
         sys.exit(1)
 
 
-def main():
+def setup_logging():
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     logger.setLevel(logging.DEBUG)
     if not os.path.exists('log'):
         os.makedirs('log')
-    handler = RotatingFileHandler('log/cpower.log', maxBytes=10*1000*1000, backupCount=10)
+    handler = RotatingFileHandler('log/cpower.log', maxBytes=10485760, backupCount=10)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+
+def main():
+    setup_logging()
     logger.info('Starting script execution...')
 
     # Getting env var set by ECMSID
@@ -120,7 +125,7 @@ def main():
 
     try:
         logger.info("Environments variables found: ORDER_ID='%s' SOURCE_API='%s' ORDER_STATUS='%s'"
-                     % (order_id, source_api, order_status))
+                    % (order_id, source_api, order_status))
         # Getting ECM order using the ORDER_ID env var
         order_resp = ecm_util.invoke_ecm_api(order_id, c.ecm_service_api_orders, 'GET')
     except ECMConnectionError as e:
@@ -133,7 +138,7 @@ def main():
     try:
         if source_api == 'createOrder':
             # Getting customer order params from getOrder response
-            create_order_cop = order_json['data']['order']['customOrderParams'] # check if it generates exception
+            create_order_cop = order_json['data']['order']['customOrderParams']  # check if it generates exception
 
             # Checking if order type is createService
             if get_order_items('createService', order_json) is not None:
@@ -177,7 +182,8 @@ def main():
                     # Customer already in DB, it shouldn't be possible for createService operation
                     pass
 
-                ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
+                ntw_service_row = (
+                service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
                 dbman.save_network_service(ntw_service_row)
                 logger.info('Network Service \'%s\' successfully stored to DB.' % service_id)
 
@@ -254,13 +260,14 @@ def main():
                     vmvnic_names.append(vmvnic['name'])
 
             # Getting ntw service id and vnftype for this customer (assuming that 1 customer can have max 1 ntw service)
-            dbman.query('SELECT ntw_service_id, vnf_type FROM network_service ns WHERE ns.customer_id = ?', (customer_id, ))
+            dbman.query('SELECT ntw_service_id, vnf_type FROM network_service ns WHERE ns.customer_id = ?',
+                        (customer_id,))
             row = dbman.fetchone()
             service_id = row['ntw_service_id']
-            vnf_type = row['vnf_type'] # ???
+            vnf_type = row['vnf_type']  # ???
 
             # Checking if there is already a VNF for this network service
-            dbman.query('SELECT * FROM vnf WHERE ntw_service_id=?', (service_id, ))
+            dbman.query('SELECT * FROM vnf WHERE ntw_service_id=?', (service_id,))
             row = dbman.fetchone()
             existing_vnf_id = None
             if row is not None:
@@ -303,7 +310,7 @@ def main():
             modify_service_file = './json/modify_service.json'
             modify_service_json = deserialize_json_file(modify_service_file)
             modify_service_json['vapps'][0]['id'] = vnf_id
-            modify_service_json['customInputParams'].append({"tag":"Cust_Key", "value":customer_id})
+            modify_service_json['customInputParams'].append({"tag": "Cust_Key", "value": customer_id})
             if existing_vnf_id is not None:
                 modify_service_json['vapps'].append({"id": existing_vnf_id})
 
@@ -341,7 +348,7 @@ def main():
                 dbman.query('UPDATE vnf SET ntw_service_binding=? WHERE vnf_id=?', ('YES', vnf_id))
 
                 # Getting VM id from DB, and get vimObjectId from ECM (/vms API)
-                dbman.query('SELECT * FROM vm WHERE vnf_id=?', (vnf_id, ))
+                dbman.query('SELECT * FROM vm WHERE vnf_id=?', (vnf_id,))
                 row = dbman.fetchone()
                 vm_id = row['vm_id']
                 vm_vnic1_id = row['vm_vnic1_id']
@@ -369,8 +376,8 @@ def main():
                 dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vm_id=?',
                             (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
-                #Checking if VLinks already exists
-                dbman.query('SELECT * FROM network_service WHERE customer_id=?', (customer_id, ))
+                # Checking if VLinks already exists
+                dbman.query('SELECT * FROM network_service WHERE customer_id=?', (customer_id,))
                 row = dbman.fetchone()
 
                 if not row:
@@ -381,7 +388,8 @@ def main():
 
                     extensions_input_create = deserialize_json_file('json/extensions_input_create.json')
                     # TODO filling ex inputs
-                    vlink_cp_json['orderItems'][0]['createVlink']['customInputParams'][0]['value'] = str(extensions_input_create)
+                    vlink_cp_json['orderItems'][0]['createVlink']['customInputParams'][0]['value'] = str(
+                        extensions_input_create)
 
                     vlink_cp_json['orderItems'][1]['createCp']['name'] = customer_id + '_VN_LEFT'
                     vlink_cp_json['orderItems'][1]['createCp']['address'] = vm_vnic1_name
@@ -473,7 +481,7 @@ def main():
 
             dbman.query('SELECT vn_left_id, vn_right_id FROM network_service ns, vnf, vn_group vn WHERE '
                         'ns.ntw_service_id=? and ns.ntw_service_id=vnf.ntw_service_id and vn.vnf_id=vnf.vnf_id',
-                        (service_id, ))
+                        (service_id,))
             row = dbman.fetchone()
             vn_left_id = row['vn_left_id']
             vn_right_id = row['vn_right_id']
@@ -501,13 +509,12 @@ def main():
                 vn_group_id = row['vn_group_id']
                 dbman.delete_vn_group(vn_group_id)
 
-            #TODO notify NSO success
-
+                # TODO notify NSO success
         else:
             logger.info('%s operation not handled' % source_api)
 
         _exit('SUCCESS')
-    except Exception as e: # Fix this
+    except Exception as e:  # Fix this
         dbman.rollback()
         logger.exception('Something went wrong during script execution.')
         _exit('FAILURE')
