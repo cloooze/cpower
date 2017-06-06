@@ -87,6 +87,6 @@ def deploy_ovf_package(ovf_package_id, json_data):
 
 def check_ecm_resp(resp):
     resp_json = json.loads(resp.text)
-    if resp_json['status']['resStatus'] != 'SUCCESS':
+    if resp_json['status']['reqStatus'] != 'SUCCESS':
         raise ECMReqStatusError(resp_json['status']['msgs'])
 

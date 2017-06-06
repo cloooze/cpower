@@ -209,11 +209,8 @@ def main():
                 logger.info('Deploying OVF Package %s' % ovf_package_id)
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
-                except ECMReqStatusError as rs:
-                    logger.exception(rs)
-                except ECMConnectionError as e:
+                except (ECMReqStatusError, ECMConnectionError) as e:
                     logger.exception(e)
-                finally:
                     operation_error['operation'] = 'createVnf'
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
@@ -282,11 +279,8 @@ def main():
 
                 vn_right_resp = ecm_util.invoke_ecm_api(vn_right['id'], c.ecm_service_api_vns, 'GET')
                 vn_right_resp_json = json.loads(vn_right_resp.text)
-            except ECMReqStatusError as rs:
-                logger.exception(rs)
-            except ECMConnectionError as e:
+            except (ECMReqStatusError, ECMConnectionError) as e:
                 logger.exception(e)
-            finally:
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
 
@@ -316,11 +310,8 @@ def main():
 
             try:
                 ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
-            except ECMReqStatusError as rs:
-                logger.exception(rs)
-            except ECMConnectionError as e:
+            except (ECMReqStatusError, ECMConnectionError) as e:
                 logger.exception(e)
-            finally:
                 operation_error['operation'] = 'createVnf'
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
@@ -365,11 +356,8 @@ def main():
                     resp = ecm_util.invoke_ecm_api(vm_vnic2_id, c.ecm_service_api_vmvnics, 'GET')
                     vmvnics_json = json.loads(resp.text)
                     vm_vnic2_vimobject_id = vmvnics_json['data']['vmVnic']['vimObjectId']
-                except ECMReqStatusError as rs:
-                    logger.exception(rs)
-                except ECMConnectionError as e:
+                except (ECMReqStatusError, ECMConnectionError) as e:
                     logger.exception(e)
-                finally:
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
 
@@ -413,11 +401,8 @@ def main():
                     modify_vlink_json['customInputParams'][0]['value'] = str(extensions_input_modify)
                     try:
                         ecm_util.invoke_ecm_api(vlink_id, c.ecm_service_api_vlinks, 'PUT', modify_vlink_json)
-                    except ECMReqStatusError as rs:
-                        logger.exception(rs)
-                    except ECMConnectionError as e:
+                    except (ECMReqStatusError, ECMConnectionError) as e:
                         logger.exception(e)
-                    finally:
                         nso_util.notify_nso(operation_error)
                         _exit('FAILURE')
             else:
@@ -457,11 +442,8 @@ def main():
 
                 try:
                     ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
-                except ECMReqStatusError as rs:
-                    logger.exception(rs)
-                except ECMConnectionError as e:
+                except (ECMReqStatusError, ECMConnectionError) as e:
                     logger.exception(e)
-                finally:
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
         elif source_api == 'deleteService':
@@ -489,11 +471,8 @@ def main():
             try:
                 ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_services, 'DELETE')
                 ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_services, 'DELETE')
-            except ECMReqStatusError as rs:
-                logger.exception(rs)
-            except ECMConnectionError as e:
+            except (ECMReqStatusError, ECMConnectionError) as e:
                 logger.exception(e)
-            finally:
                 operation_error['operation'] = 'deleteVn'
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
