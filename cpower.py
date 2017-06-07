@@ -87,6 +87,15 @@ def get_ovf_package_id(vnf_type):
         raise VnfTypeException
 
 
+# Not used atm
+ovf_package_ids = {
+    'csr1000_1': c.ovf_package_dpi_1,
+    'csr1000_2': c.ovf_package_dpi_2,
+    'fortinet_1': c.ovf_package_fortinet_1,
+    'fortinet_2': c.ovf_package_fortinet_2
+}
+
+
 def _exit(exit_mess):
     e = {'SUCCESS': 0, 'FAILURE': 1}
     logger.info('End of script execution - %s' % exit_mess)
@@ -365,6 +374,7 @@ def main():
                             (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
                 # Checking if VLinks already exists
+                # TODO doesn't work, to check vlink column from network service table
                 dbman.query('SELECT * FROM network_service WHERE customer_id=?', (customer_id,))
                 row = dbman.fetchone()
 
@@ -423,7 +433,7 @@ def main():
                     _exit('FAILURE')
 
                 try:
-                    ovf_package_id = get_ovf_package_id(vnf_type)
+                    ovf_package_id = get_ovf_package_id(vnf_type) # here the ovf package type 2 should be loaded
                 except VnfTypeException:
                     error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
                     logger.error(error_message)
