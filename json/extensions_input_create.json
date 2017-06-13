@@ -1,23 +1,23 @@
 {
 	"extensions-input": {
 		"service-instance": {
-			"operation": "",
-			"si_name": "",
-			"left_virtual_network_fqdn": "",
-			"right_virtual_network_fqdn": "",
-			"service_template": "",
+			"operation": "create",
+			"si_name": "$customer_id-$vnf_name",
+			"left_virtual_network_fqdn": "default-domain:cpower:$vnLeft_name",
+			"right_virtual_network_fqdn": "default-domain:cpower:$vnRight_name",
+			"service_template": "cpower-template",
 			"port-tuple": {
-				"name": "",
-				"si_name": ""
+				"name": "port-tuple-$si_name",
+				"si_name": "$customer_id-$vnf_name"
 			},
 			"update-vmvnic": {
-				"right": "",
-				"left": "",
-				"port_tuple": ""
+				"right": "$vnRightVimObjectId",
+				"left": "$vnLeftVimObjectId",
+				"port-tuple": "port-tuple-$si_name"
 			}
 		},
 		"network-policy": {
-			"operation": "",
+			"operation": "create",
 			"policy_name": "",
 			"policy-rule": [],
 			"dst_address": "",

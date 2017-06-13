@@ -71,7 +71,7 @@ def get_order_items(order_item_name, json_data):
         return None
 
 
-def deserialize_json_file(file_name):
+def load_json_file(file_name):
     """Returns a dictionary object from a JSON file"""
     with open(file_name) as f:
         data = json.load(f)
@@ -210,7 +210,7 @@ def main():
                     _exit('FAILURE')
 
                 deploy_ovf_package_file = './json/deploy_ovf_package.json'
-                ovf_package_json = deserialize_json_file(deploy_ovf_package_file)
+                ovf_package_json = load_json_file(deploy_ovf_package_file)
                 ovf_package_json['tenantName'] = c.ecm_tenant_name
                 ovf_package_json['vdc']['id'] = c.ecm_vdc_id
                 ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
@@ -311,7 +311,7 @@ def main():
 
             # Modifying service
             modify_service_file = './json/modify_service.json'
-            modify_service_json = deserialize_json_file(modify_service_file)
+            modify_service_json = load_json_file(modify_service_file)
             modify_service_json['vapps'][0]['id'] = vnf_id
             modify_service_json['customInputParams'].append({"tag": "Cust_Key", "value": customer_id})
             if existing_vnf_id is not None:
@@ -379,13 +379,25 @@ def main():
                 row = dbman.fetchone()
 
                 if not row:
+                    #Getting VNs info
+                    dbman.query('SELECT * FROM VN_GROUP where vnf_id=?', (vnf_id,))
+                    row = dbman.fetchone()
+                    vn_left_name = row['vn_left_name']
+                    vn_right_name = row['vn_right_name']
                     # Creating VLinks and CPs
-                    vlink_cp_json = deserialize_json_file('json/create_vlink_cp.json')
+                    vlink_cp_json = load_json_file('json/create_vlink_cp.json')
                     vlink_cp_json['orderItems'][0]['createVlink']['name'] = customer_id + '_policy'
                     vlink_cp_json['orderItems'][0]['createVlink']['service']['id'] = service_id
 
-                    extensions_input_create = deserialize_json_file('json/extensions_input_create.json')
-                    # TODO filling ex inputs
+                    extensions_input_create = load_json_file('json/extensions_input_create.json')
+                    extensions_input_create['extensionsInput']['service-instance']['si_name'] = customer_id + '-' + vnf_id
+                    extensions_input_create['extensionsInput']['service-instance']['left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_left_name
+                    extensions_input_create['extensionsInput']['service-instance']['right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_right_name
+                    extensions_input_create['extensionsInput']['service-instance']['port-tuple']['name'] = 'port-tuple' + customer_id + '-' + vnf_id
+                    extensions_input_create['extensionsInput']['service-instance']['update-vmvnic']['right'] = (vm_vnic1_vimobject_id if 'left' in vm_vnic1_name else vm_vnic2_name)
+                    extensions_input_create['extensionsInput']['service-instance']['update-vmvnic']['left'] = (vm_vnic2_vimobject_id if 'right' in vm_vnic2_name else vm_vnic2_name)
+                    extensions_input_create['extensionsInput']['service-instance']['update-vmvnic']['port-tuple'] = 'port-tuple' + customer_id + '-' + vnf_id
+
                     vlink_cp_json['orderItems'][0]['createVlink']['customInputParams'][0]['value'] = str(
                         extensions_input_create)
 
@@ -405,8 +417,8 @@ def main():
                 else:
                     # Modifying... TODO
                     vlink_id = row['vlink_id']
-                    modify_vlink_json = deserialize_json_file('json/modify_vlink.json')
-                    extensions_input_modify = deserialize_json_file('json/extensions_input_modify.json')
+                    modify_vlink_json = load_json_file('json/modify_vlink.json')
+                    extensions_input_modify = load_json_file('json/extensions_input_modify.json')
                     # TODO filliong ex inputs
                     modify_vlink_json['customInputParams'][0]['value'] = str(extensions_input_modify)
                     try:
@@ -443,7 +455,7 @@ def main():
                     _exit('FAILURE')
 
                 deploy_ovf_package_file = './json/deploy_ovf_package.json'
-                ovf_package_json = deserialize_json_file(deploy_ovf_package_file)
+                ovf_package_json = load_json_file(deploy_ovf_package_file)
                 ovf_package_json['tenantName'] = c.ecm_tenant_name
                 ovf_package_json['vdc']['id'] = c.ecm_vdc_id
                 ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
@@ -479,8 +491,9 @@ def main():
             vn_right_id = row['vn_right_id']
 
             try:
-                ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_services, 'DELETE')
-                ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_services, 'DELETE')
+                # TODO delete VNs here
+                ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE')
+                ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
             except (ECMReqStatusError, ECMConnectionError) as e:
                 logger.exception(e)
                 operation_error['operation'] = 'deleteVn'

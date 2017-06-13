@@ -6,6 +6,9 @@ from stompest.sync import Stomp
 import xml.etree.ElementTree
 import os
 import json
+import sys
+import subprocess
+import logging
 
 CONFIG = ''
 QUEUE = ''
@@ -14,43 +17,35 @@ QUEUE_MAPPING = {
     'DesignComplete': 'DesignCompleteQ',
     'ActivationComplete': 'ActivationCompleteQ'
 }
+TENANT = ''
+DISPATCH = ''
 EXTERNAL_APP_MAPPING = dict()
+logger = logging.getLogger('consumer')
 
 
 def setup_config():
-    """Read configuration file and set up all the configuration needed"""
+    """Read configuration file and set everything up"""
     global CONFIG
     global QUEUE
     global EXTERNAL_APP_MAPPING
-    CONFIG = StompConfig('tcp://10.42.237.150:61613')
-    QUEUE = 'OrderCompleteCdwfQ'
-    EXTERNAL_APP_MAPPING = {'OrderComplete': 'app_name'}
+    global TENANT
+    global DISPATCH
 
-    # TODO fetch config from external JSON file
-    """
-    {
-   "stomp": {
-      "hostname": "localhost",
-      "port": "61613"
-   },
-   "dispatch": [
-        {
-         "event": "OrderComplete",
-         "tenant": "Cpower-tenant",
-         "command": "./execute_cw.sh"
-   }
-   ]
-   }
-    """
-    """
-    with open('config.json') as f:
-        data = json.load(f)
+    try:
+        with open('config.json') as f:
+            data = json.load(f)
+    except IOError:
+        logger.info("Configuration file 'config.json' not found.")
+        sys.exit(1)
 
-    stomp = data['stomp']
-    CONFIG = StompConfig('tcp://%s:%s' % (stomp['hostname'], stomp['port']))
+    hostname = data['stomp']['hostname']
+    port = data['stomp']['port']
+    event = data['dispatch']['event']
 
-    dispatch = data['dispatch']
-    """
+    CONFIG = StompConfig('tcp://%s:%s' % (hostname, port))
+    QUEUE = QUEUE_MAPPING[event]
+    TENANT = data['dispatch']['tenant']
+    DISPATCH = data['dispatch']['command']
 
 
 def set_env_var(frame_body_elements):
@@ -61,15 +56,15 @@ def set_env_var(frame_body_elements):
 
 def get_env_var_name(s):
     """Returns
-       s = 'test' -> 'test'
        s = 'helloTest' -> 'ECM_HELLO_TEST'
+       s = everything else -> s
     """
-    l = list()
+    i = int()
     for c in s:
         if c.isupper():
-            l.append(s.index(c))
-    if len(l) == 1:
-        return ('ECM_' + s[:l[0]] + '_' + s[l[0]:]).upper()
+            i = s.index(c)
+    if i == 1:
+        return ('ECM_' + s[:i] + '_' + s[i:]).upper()
     else:
         return s
 
@@ -96,28 +91,46 @@ def parse_frame_body(frame_body):
     return dict((k, v) for k, v in frame_elements.items() if v is not None)
 
 
+def log_config():
+    logger.info('Subscribed to queue %s...' % QUEUE)
+    logger.info('Host %s' % CONFIG.uri)
+    logger.info('Tenant: %s' % TENANT)
+
+def setup_logger():
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+
 def run():
-    """Executes the infinite loop that waits for new messages"""
+    """Executes the infinite loop that waits to consume  new messages"""
     client = Stomp(CONFIG)
     client.connect()
     client.subscribe(QUEUE, {StompSpec.ACK_HEADER: StompSpec.ACK_CLIENT_INDIVIDUAL})
     # client.subscribe('DesignCompleteQ', {StompSpec.ACK_HEADER: StompSpec.ACK_CLIENT_INDIVIDUAL})
     while True:
         frame = client.receiveFrame()
-        #print('Frame info %s' % frame.info())
-        #print('Frame command %s' % frame.command)
-        #print('Frame headers %s' % frame.headers)
-        #print('Frame body %s' % frame.body)
         client.ack(frame)
         frame_body_elements = parse_frame_body(frame.body)
-        print frame_body_elements
+        logger.debug(frame_body_elements)
         set_env_var(frame_body_elements)
+        logger.info('Invoking external application: %s' % DISPATCH)
+        try:
+            res = subprocess.call([DISPATCH])
+            logger.info('External application returned exit status %s' % res)
+        except Exception:
+            logger.error('erroraccio winzoz')
 
     client.disconnect()
 
 
 def main():
+    setup_logger()
     setup_config()
+    log_config()
     run()
 
 if __name__ == '__main__':

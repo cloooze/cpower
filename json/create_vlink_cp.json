@@ -4,7 +4,7 @@
 		"orderItemId": "1",
 		"createVLink": {
 			"name": "",
-			"type": "L3VPN-E",
+			"type": "L3VPN-TIM",
 			"service": {
 				"id": ""
 			},
