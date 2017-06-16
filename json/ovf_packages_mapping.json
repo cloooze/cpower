@@ -1,0 +1,28 @@
+[
+  {
+    "type": "csr1000",
+    "map": [
+      {
+        "operation": "create",
+        "id": "e749a0a9-d132-4ed5-90a6-fd6aaf1e4b2e"
+      },
+      {
+        "operation": "add",
+        "id": "e749a0a9-d132-4ed5-90a6-fd6aaf1e4b2e"
+      }
+    ]
+  },
+  {
+    "type": "fortinet",
+    "map": [
+      {
+        "operation": "create",
+        "id": "378cb684-f7dc-479c-a198-afafd8a503a1"
+      },
+      {
+        "operation": "add",
+        "id": "378cb684-f7dc-479c-a198-afafd8a503a1"
+      }
+    ]
+  }
+]

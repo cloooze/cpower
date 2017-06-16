@@ -23,7 +23,7 @@ def get_ecm_api_auth():
 def invoke_ecm_api(param, api, http_verb, json_data=''):
     count = 0
     while count < c.retry_n:
-        logger.info('Invoking ECM API %s%s - %s ' % (api, param, http_verb))
+        logger.info('Invoking ECM API %s%s - %s ' % (api, (param if param is not None else ''), http_verb))
         try:
             if http_verb == 'GET':
                 resp = requests.get('%s%s%s' % (c.ecm_server_address, api, param),

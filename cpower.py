@@ -77,14 +77,23 @@ def load_json_file(file_name):
         data = json.load(f)
     return data
 
-
-def get_ovf_package_id(vnf_type):
+# Deprecated
+def get_ovf_package_id_v2(vnf_type):
     if vnf_type == 'csr1000':
         return c.ovf_package_dpi_1
     elif vnf_type == 'fortinet':
         return c.ovf_package_fortinet_1
     else:
         raise VnfTypeException
+
+def get_ovf_package_id(vnf_type, operation):
+    json = load_json_file('json/ovf_packages_mapping.json')
+    for i in json:
+        if i['type'] == vnf_type:
+            for v in i['map']:
+                if v['operation'] == operation:
+                    return v['id']
+    return None
 
 
 # Not used atm
@@ -147,7 +156,13 @@ def main():
     try:
         if source_api == 'createOrder':
             # Getting customer order params from getOrder response
-            create_order_cop = order_json['data']['order']['customOrderParams']  # check if it generates exception
+            create_order_cop = dict()
+            try:
+                create_order_cop = order_json['data']['order']['customOrderParams']  # check if it generates exception
+            except KeyError:
+                # The flow ends up here when has been sent a creteVlinkCp as createOrder from the customworkflow since
+                # the order doesn't have any customOrderParams
+                pass
 
             # Checking if order type is createService
             if get_order_items('createService', order_json) is not None:
@@ -200,7 +215,7 @@ def main():
                 # It is loaded the ovf package 1 as we are in the 'createService' (meaning that the first VNF for the
                 # service is being requested
                 try:
-                    ovf_package_id = get_ovf_package_id(vnf_type)
+                    ovf_package_id = get_ovf_package_id(vnf_type, 'create')
                 except VnfTypeException:
                     error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
                     logger.error(error_message)
@@ -224,7 +239,7 @@ def main():
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
 
-            elif get_order_items('createVlink', order_json) is not None:
+            elif get_order_items('createVLink', order_json) is not None:
                 # TODO
                 pass
             else:
@@ -374,31 +389,35 @@ def main():
                             (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
                 # Checking if VLinks already exists
-                # TODO doesn't work, to check vlink column from network service table
-                dbman.query('SELECT * FROM network_service WHERE customer_id=?', (customer_id,))
+                dbman.query("SELECT * FROM network_service WHERE customer_id=? AND vlink_id IS NOT ''", (customer_id,))
                 row = dbman.fetchone()
 
                 if not row:
-                    #Getting VNs info
+                    # Getting VNs info
                     dbman.query('SELECT * FROM VN_GROUP where vnf_id=?', (vnf_id,))
                     row = dbman.fetchone()
                     vn_left_name = row['vn_left_name']
                     vn_right_name = row['vn_right_name']
                     # Creating VLinks and CPs
                     vlink_cp_json = load_json_file('json/create_vlink_cp.json')
-                    vlink_cp_json['orderItems'][0]['createVlink']['name'] = customer_id + '_policy'
-                    vlink_cp_json['orderItems'][0]['createVlink']['service']['id'] = service_id
+                    vlink_cp_json['orderItems'][0]['createVLink']['name'] = customer_id + '_policy'
+                    vlink_cp_json['orderItems'][0]['createVLink']['service']['id'] = service_id
 
                     extensions_input_create = load_json_file('json/extensions_input_create.json')
-                    extensions_input_create['extensionsInput']['service-instance']['si_name'] = customer_id + '-' + vnf_id
-                    extensions_input_create['extensionsInput']['service-instance']['left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_left_name
-                    extensions_input_create['extensionsInput']['service-instance']['right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_right_name
-                    extensions_input_create['extensionsInput']['service-instance']['port-tuple']['name'] = 'port-tuple' + customer_id + '-' + vnf_id
-                    extensions_input_create['extensionsInput']['service-instance']['update-vmvnic']['right'] = (vm_vnic1_vimobject_id if 'left' in vm_vnic1_name else vm_vnic2_name)
-                    extensions_input_create['extensionsInput']['service-instance']['update-vmvnic']['left'] = (vm_vnic2_vimobject_id if 'right' in vm_vnic2_name else vm_vnic2_name)
-                    extensions_input_create['extensionsInput']['service-instance']['update-vmvnic']['port-tuple'] = 'port-tuple' + customer_id + '-' + vnf_id
+                    extensions_input_create['extensions-input']['service-instance']['si_name'] = customer_id + '-' + vnf_id
+                    extensions_input_create['extensions-input']['service-instance']['left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_left_name
+                    extensions_input_create['extensions-input']['service-instance']['right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_right_name
+                    extensions_input_create['extensions-input']['service-instance']['port-tuple']['name'] = 'port-tuple' + customer_id + '-' + vnf_id
+                    extensions_input_create['extensions-input']['service-instance']['port-tuple']['si_name'] = customer_id + '-' + vnf_id
+                    extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['right'] = (vm_vnic1_vimobject_id if 'left' in vm_vnic1_name else vm_vnic2_name)
+                    extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['left'] = (vm_vnic2_vimobject_id if 'right' in vm_vnic2_name else vm_vnic2_name)
+                    extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['port-tuple'] = 'port-tuple' + customer_id + '-' + vnf_id
+                    extensions_input_create['extensions-input']['network-policy']['policy-name'] = 'test'
+                    l = list()
+                    l.append(customer_id + '-' + vnf_id)
+                    extensions_input_create['extensions-input']['network-policy']['policy-rule'] = l
 
-                    vlink_cp_json['orderItems'][0]['createVlink']['customInputParams'][0]['value'] = str(
+                    vlink_cp_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = str(
                         extensions_input_create)
 
                     vlink_cp_json['orderItems'][1]['createCp']['name'] = customer_id + '_VN_LEFT'
@@ -409,13 +428,13 @@ def main():
                     vlink_cp_json['orderItems'][2]['createCp']['address'] = vm_vnic2_name
                     vlink_cp_json['orderItems'][2]['createCp']['vapp']['id'] = vnf_id
                     try:
-                        ecm_util.invoke_ecm_api(c.ecm_service_api_orders, 'POST', vlink_cp_json)
+                        ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_cp_json)
                     except ECMConnectionError as e:
                         logger.exception(e)
                         # TODO notify NSO
                         _exit('FAILURE')
-                else:
-                    # Modifying... TODO
+                elif get_custom_input_param('vnf-position', get_custom_input_params('modifyService', order_json)) == '1':
+                    # Modifying... TODO to reimplement from skretch
                     vlink_id = row['vlink_id']
                     modify_vlink_json = load_json_file('json/modify_vlink.json')
                     extensions_input_modify = load_json_file('json/extensions_input_modify.json')
@@ -427,6 +446,9 @@ def main():
                         logger.exception(e)
                         nso_util.notify_nso(operation_error)
                         _exit('FAILURE')
+                elif get_custom_input_param('vnf-position', get_custom_input_params('modifyService', order_json)) == '2':
+                    # TODO
+                    pass
             else:
                 modify_service_cip = get_custom_input_params('modifyService', order_json)
 
@@ -437,37 +459,68 @@ def main():
                 empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type)
 
                 if empty_cop is not None:
-                    error_message = "Custom order parameter '%s' not found or empty." % empty_cop
+                    error_message = "Custom input parameter '%s' not found or empty." % empty_cop
                     logger.error(error_message)
                     workflow_error['error-code'] = REQUEST_ERROR
                     workflow_error['error-message'] = error_message
                     nso_util.notify_nso(workflow_error)
                     _exit('FAILURE')
+                if get_custom_input_param('operation', get_custom_input_params('modifyService', order_json)) == 'create':
+                    try:
+                        ovf_package_id = get_ovf_package_id(vnf_type, 'add')
+                    except VnfTypeException:
+                        error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
+                        logger.error(error_message)
+                        workflow_error['error-code'] = REQUEST_ERROR
+                        workflow_error['error-message'] = error_message
+                        nso_util.notify_nso(workflow_error)
+                        _exit('FAILURE')
 
-                try:
-                    ovf_package_id = get_ovf_package_id(vnf_type) # here the ovf package type 2 should be loaded
-                except VnfTypeException:
-                    error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
-                    logger.error(error_message)
-                    workflow_error['error-code'] = REQUEST_ERROR
-                    workflow_error['error-message'] = error_message
-                    nso_util.notify_nso(workflow_error)
-                    _exit('FAILURE')
+                    deploy_ovf_package_file = './json/deploy_ovf_package.json'
+                    ovf_package_json = load_json_file(deploy_ovf_package_file)
+                    ovf_package_json['tenantName'] = c.ecm_tenant_name
+                    ovf_package_json['vdc']['id'] = c.ecm_vdc_id
+                    ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
 
-                deploy_ovf_package_file = './json/deploy_ovf_package.json'
-                ovf_package_json = load_json_file(deploy_ovf_package_file)
-                ovf_package_json['tenantName'] = c.ecm_tenant_name
-                ovf_package_json['vdc']['id'] = c.ecm_vdc_id
-                ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
+                    logger.info('Deploying OVF Package %s' % ovf_package_id)
 
-                logger.info('Deploying OVF Package %s' % ovf_package_id)
+                    try:
+                        ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
+                    except (ECMReqStatusError, ECMConnectionError) as e:
+                        logger.exception(e)
+                        nso_util.notify_nso(operation_error)
+                        _exit('FAILURE')
+                elif get_custom_input_param('operation', get_custom_input_params('modifyService', order_json)) == 'delete':
+                    # Getting service_id from order
+                    service_id = get_order_items('modifyService')[0]['id']
+                    # Getting vnf_id from VNF table
+                    dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id=? AND vnf_type IS NOT ?', (service_id, vnf_type))
+                    vnf_ids = dbman.fetchall()
+                    if vnf_ids is not None:
+                        # Detaching the VNF from Network Service in order to delete the VNF
+                        json_data = load_json_file('json/modify_service.json')
+                        json_data.pop('customInputParams') # removing customInputParams from JSON
+                        for vnf_id in vnf_ids:
+                            json_data['vapps'].append({"id": vnf_id})
+                        try:
+                            ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', json_data)
+                        except:
+                            #TODO
+                            pass
 
-                try:
-                    ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
-                except (ECMReqStatusError, ECMConnectionError) as e:
-                    logger.exception(e)
-                    nso_util.notify_nso(operation_error)
-                    _exit('FAILURE')
+                    # Sleep 5sec
+                    # Deleting the VNF
+                    dbman.query('SELECT * FROM vnf WHERE ntw_service_id=? AND vnf_type=?', (service_id, vnf_type))
+                    if row is not None:
+                        row = dbman.fetchone()
+                        vnf_id = row['vnf_id']
+                        try:
+                            ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
+                            #check if the delete fails because of the detach failed
+                        except:
+                            #TODO
+                            pass
+
         elif source_api == 'deleteService':
             service_id = get_order_items('deleteService', order_json)[0]['id']
 
@@ -505,7 +558,7 @@ def main():
             dbman.query('SELECT vn_group_id FROM vn_group vn WHERE vn.vn_left_id=? OR vn.vn_right_id=?', (vn_id,))
             row = dbman.fetchone()
 
-            if not row:
+            if row is not None:
                 logger.info('Vn group associated to VNs %s already deleted.' % (vn_id))
             else:
                 vn_group_id = row['vn_group_id']

@@ -36,3 +36,7 @@ ovf_package_fortinet_1 = "378cb684-f7dc-479c-a198-afafd8a503a1"
 ovf_package_fortinet_2 = ""
 ovf_package_dpi_1 = "e749a0a9-d132-4ed5-90a6-fd6aaf1e4b2e"
 ovf_package_dpi_2 = ""
+
+# TO change to the following naming ovf_package_<vnf-type-name>_<create or add>
+#ovf_package_fortinet_create
+#ovf_package_fortinet_add
