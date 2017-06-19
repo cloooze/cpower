@@ -9,6 +9,7 @@ from ecm_exception import *
 
 logger = logging.getLogger("cpower")
 
+
 def get_ecm_api_auth():
     usr_pass = '%s:%s' % (c.ecm_service_api_header_auth_key, c.ecm_service_api_header_auth_value)
     b64_val = base64.b64encode(usr_pass)

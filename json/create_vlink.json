@@ -1,0 +1,17 @@
+{
+	"tenantName": "Cpower-tenant",
+	"orderItems": [{
+		"orderItemId": "1",
+		"createVLink": {
+			"name": "",
+			"type": "L3VPN-TIM",
+			"service": {
+				"id": ""
+			},
+			"customInputParams": [{
+				"tag": "L3VPN-TIM Template",
+				"value": ""
+			}]
+		}
+	}]
+}

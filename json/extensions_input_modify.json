@@ -14,6 +14,13 @@
 				"right": "",
 				"left": "",
 				"port_tuple": ""
+			},
+			"network-policy": {
+				"operation": "update",
+				"policy_name": "",
+				"policy-rule": [],
+				"dst_address": "",
+				"src_address": ""
 			}
 		}
 	}
