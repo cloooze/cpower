@@ -391,6 +391,8 @@ def main():
                 # Checking if VLinks already exists
                 dbman.query("SELECT * FROM network_service WHERE customer_id=? AND vlink_id IS NOT ''", (customer_id,))
                 row = dbman.fetchone()
+                rt_left = row['rt_left']
+                rt_right = row['rt_right']
 
                 if not row:
                     # Getting VNs info
@@ -398,6 +400,8 @@ def main():
                     row = dbman.fetchone()
                     vn_left_name = row['vn_left_name']
                     vn_right_name = row['vn_right_name']
+                    vn_left_vim_object_id = row['vn_left_vimobject_id']
+                    vn_right_vim_object_id = row['vn_right_vimobject_id']
                     # Creating VLinks and CPs
                     vlink_cp_json = load_json_file('json/create_vlink_cp.json')
                     vlink_cp_json['orderItems'][0]['createVLink']['name'] = customer_id + '_policy'
@@ -412,9 +416,14 @@ def main():
                     extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['right'] = (vm_vnic1_vimobject_id if 'left' in vm_vnic1_name else vm_vnic2_name)
                     extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['left'] = (vm_vnic2_vimobject_id if 'right' in vm_vnic2_name else vm_vnic2_name)
                     extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['port-tuple'] = 'port-tuple' + customer_id + '-' + vnf_id
+                    extensions_input_create['extensions-input']['update-vn-RT']['right_VN'] = vn_right_vim_object_id
+                    extensions_input_create['extensions-input']['update-vn-RT']['right_RT'] = rt_right
+                    extensions_input_create['extensions-input']['update-vn-RT']['left_VN'] = vn_left_vim_object_id
+                    extensions_input_create['extensions-input']['update-vn-RT']['left_RT'] = rt_left
+                    extensions_input_create['extensions-input']['update-vn-RT']['network_policy'] = 'test'
                     extensions_input_create['extensions-input']['network-policy']['policy_name'] = 'test'
-                    extensions_input_create['extensions-input']['network-policy']['src_address-name'] = 'default-domain:cpower:' + vn_left_name
-                    extensions_input_create['extensions-input']['network-policy']['dst_address-name'] = 'default-domain:cpower:' + vn_right_name
+                    extensions_input_create['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_left_name
+                    extensions_input_create['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_right_name
                     l = list()
                     l.append(customer_id + '-' + vnf_id)
                     extensions_input_create['extensions-input']['network-policy']['policy-rule'] = l
@@ -498,6 +507,10 @@ def main():
                         logger.exception(e)
                         nso_util.notify_nso(operation_error)
                         _exit('FAILURE')
+                    #TODO to check here is position tag is specified!!!! c'è un problerma, non può essere fatto qui
+                    # TODO settare temporaneamnete la position, e fissarla solo se il deploy è andato bene
+
+
                 elif get_custom_input_param('operation', get_custom_input_params('modifyService', order_json)) == 'delete':
                     # Getting service_id from order
                     service_id = get_order_items('modifyService')[0]['id']

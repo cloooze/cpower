@@ -28,7 +28,7 @@
             "right_RT": "target:100:88",
             "left_VN": "d1196ba8-7628-4816-bddc-f492d4341bda",
             "left_RT": "target:100:99",
-            "network_policy”": "default-domain:cpower:Tony_policy_name"
+            "network_policy": "default-domain:cpower:Tony_policy_name"
         }
 	}
 }
