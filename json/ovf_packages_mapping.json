@@ -1,14 +1,14 @@
 [
   {
-    "type": "csr1000",
+    "type": "csr1000v",
     "map": [
       {
         "operation": "create",
-        "id": "e749a0a9-d132-4ed5-90a6-fd6aaf1e4b2e"
+        "id": "9f40b2e3-58b7-48ae-b7f5-dad823e4ad16"
       },
       {
         "operation": "add",
-        "id": "e749a0a9-d132-4ed5-90a6-fd6aaf1e4b2e"
+        "id": "9f40b2e3-58b7-48ae-b7f5-dad823e4ad16"
       }
     ]
   },

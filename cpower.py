@@ -93,7 +93,7 @@ def get_ovf_package_id(vnf_type, operation):
             for v in i['map']:
                 if v['operation'] == operation:
                     return v['id']
-    return None
+    raise VnfTypeException
 
 
 # Not used atm
@@ -240,8 +240,9 @@ def main():
                     _exit('FAILURE')
 
             elif get_order_items('createVLink', order_json) is not None:
-                create_vlink_json = get_order_items('createVlink', order_json)[0]
-                service_id = create_vlink_json['service']['id']
+                create_vlink = get_order_items('createVLink', order_json)[0]
+                service_id = create_vlink['service']['id']
+                policy_name = create_vlink['service']['name'].split('-')[0] + '_' + create_vlink['service']['name'].split('-')[2]
 
                 dbman.query('SELECT * FROM network_service WHERE ntw_service_id=?', (service_id,))
                 row = dbman.fetchone()
@@ -255,18 +256,13 @@ def main():
                     nso_util.notify_nso(operation_error)
                     _exit('FAILURE')
 
-                vlink_id = create_vlink_json['id']
-                vlink_name = create_vlink_json['name']
+                vlink_id = create_vlink['id']
+                vlink_name = create_vlink['name']
 
                 # Updating table NETWORK_SERVICE with the just created vlink_id and vlink_name
-                dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?  WHERE ntw_service_id=?',
-                            (vlink_id, vlink_name, service_id))
-
-
-
-
-
-
+                dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?,ntw_policy=?  WHERE ntw_service_id=?',
+                            (vlink_id, vlink_name, policy_name, service_id))
+                logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
             else:
                 logger.error('Custmor workflow ended up in a inconsistent state, please check the logs.')
                 _exit('FAILURE')
@@ -384,6 +380,7 @@ def main():
                 service_id = service['id']
                 vnf_id = service['vapps'][0]['id']
 
+
                 # Associate service network - vnf into DB
                 dbman.query('UPDATE vnf SET ntw_service_binding=? WHERE vnf_id=?', ('YES', vnf_id))
 
@@ -452,7 +449,7 @@ def main():
                     extensions_input_create['extensions-input']['update-vn-RT']['right_RT'] = rt_right
                     extensions_input_create['extensions-input']['update-vn-RT']['left_VN'] = vn_left_vim_object_id
                     extensions_input_create['extensions-input']['update-vn-RT']['left_RT'] = rt_left
-                    extensions_input_create['extensions-input']['update-vn-RT']['network_policy'] = customer_id + '_policy'
+                    extensions_input_create['extensions-input']['update-vn-RT']['network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
                     extensions_input_create['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
                     extensions_input_create['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_left_name
                     extensions_input_create['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_right_name
@@ -557,6 +554,7 @@ def main():
                     # Sleep 5sec
                     # Deleting the VNF
                     dbman.query('SELECT * FROM vnf WHERE ntw_service_id=? AND vnf_type=?', (service_id, vnf_type))
+                    row = dbman.fetchone()
                     if row is not None:
                         row = dbman.fetchone()
                         vnf_id = row['vnf_id']
@@ -568,7 +566,9 @@ def main():
                             pass
 
         elif source_api == 'deleteService':
+            # TODO check if the order is COM
             service_id = get_order_items('deleteService', order_json)[0]['id']
+            logger.info('Network service %s succesfully deleted. Deleting associated VNs...' % service_id)
 
             dbman.query('SELECT customer_id FROM network_service ns WHERE ns.ntw_service_id=?', (service_id,))
             row = dbman.fetchone()
@@ -590,7 +590,6 @@ def main():
             vn_right_id = row['vn_right_id']
 
             try:
-                # TODO delete VNs here
                 ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE')
                 ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
             except (ECMReqStatusError, ECMConnectionError) as e:
@@ -599,12 +598,13 @@ def main():
                 nso_util.notify_nso(operation_error)
                 _exit('FAILURE')
         elif source_api == 'deleteVn':
+            # TODO check if the order is COM
             # remember that the flow will end up here twice as the deleteVn are two
             vn_id = get_order_items('deleteVn', order_json)[0]['id']
             dbman.query('SELECT vn_group_id FROM vn_group vn WHERE vn.vn_left_id=? OR vn.vn_right_id=?', (vn_id,))
             row = dbman.fetchone()
 
-            if row is not None:
+            if row is None:
                 logger.info('Vn group associated to VNs %s already deleted.' % (vn_id))
             else:
                 vn_group_id = row['vn_group_id']
