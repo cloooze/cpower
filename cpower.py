@@ -394,7 +394,7 @@ def main():
 
                 if not row:
                     # Getting VNs info
-                    dbman.query('SELECT * FROM VN_GROUP where vnf_id=?', (vnf_id,))
+                    dbman.query('SELECT * FROM vn_group WHERE vnf_id=?', (vnf_id,))
                     row = dbman.fetchone()
                     vn_left_name = row['vn_left_name']
                     vn_right_name = row['vn_right_name']
@@ -412,7 +412,9 @@ def main():
                     extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['right'] = (vm_vnic1_vimobject_id if 'left' in vm_vnic1_name else vm_vnic2_name)
                     extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['left'] = (vm_vnic2_vimobject_id if 'right' in vm_vnic2_name else vm_vnic2_name)
                     extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['port-tuple'] = 'port-tuple' + customer_id + '-' + vnf_id
-                    extensions_input_create['extensions-input']['network-policy']['policy-name'] = 'test'
+                    extensions_input_create['extensions-input']['network-policy']['policy_name'] = 'test'
+                    extensions_input_create['extensions-input']['network-policy']['src_address-name'] = 'default-domain:cpower:' + vn_left_name
+                    extensions_input_create['extensions-input']['network-policy']['dst_address-name'] = 'default-domain:cpower:' + vn_right_name
                     l = list()
                     l.append(customer_id + '-' + vnf_id)
                     extensions_input_create['extensions-input']['network-policy']['policy-rule'] = l
@@ -433,6 +435,11 @@ def main():
                         logger.exception(e)
                         # TODO notify NSO
                         _exit('FAILURE')
+                else:
+                    #TODO
+                    #invoke the modifyVlink with ex input extensions_input_modify
+                    pass
+                '''
                 elif get_custom_input_param('vnf-position', get_custom_input_params('modifyService', order_json)) == '1':
                     # Modifying... TODO to reimplement from skretch
                     vlink_id = row['vlink_id']
@@ -449,6 +456,7 @@ def main():
                 elif get_custom_input_param('vnf-position', get_custom_input_params('modifyService', order_json)) == '2':
                     # TODO
                     pass
+                '''
             else:
                 modify_service_cip = get_custom_input_params('modifyService', order_json)
 
