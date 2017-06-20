@@ -1,13 +1,8 @@
 #!/usr/bin/env python
 
-import sqlite3
+
 import logging.config
-import ecm_util as ecm_util
-import nso_util as nso_util
 from db_manager import DBManager
-from ecm_exception import *
-from nso_exception import *
-import config as c
 from event_manager import OrderManager
 
 

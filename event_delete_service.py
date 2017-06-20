@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 
-import sqlite3
 import logging.config
 import ecm_util as ecm_util
 import nso_util as nso_util
+import config as c
 from db_manager import DBManager
 from ecm_exception import *
-from nso_exception import *
-import config as c
 from event_manager import OrderManager
 from utils import *
 
@@ -24,6 +22,7 @@ class DeleteService(OrderManager):
         self.order_status = order_status
         self.order_id = order_id
         self.source_api = source_api
+
         self.dbman = DBManager()
         self.logger = logging.getLogger('cpower')
 
@@ -62,4 +61,3 @@ class DeleteService(OrderManager):
             nso_util.notify_nso(workflow_error)
             return 'FAILURE'
 
-        return 'SUCCESS'

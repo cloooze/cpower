@@ -3,11 +3,11 @@
 import logging.config
 import ecm_util as ecm_util
 import nso_util as nso_util
+import config as c
 from db_manager import DBManager
 from ecm_exception import *
-import config as c
 from event_manager import OrderManager
-
+from utils import *
 
 INTERNAL_ERROR = '100'
 REQUEST_ERROR = '200'
@@ -30,7 +30,7 @@ class DeployOvfPackage(OrderManager):
 
     def execute(self):
         # OVF structure 1 createVapp, 1 createVm, 3 createVmVnic, 0/2 createVn
-        customer_id = self.get_order_items('createVm', self.order_json)[0]['name'].split('-')[0]
+        customer_id = get_order_items('createVm', self.order_json)[0]['name'].split('-')[0]
 
         operation_error = {'operation': 'createVnf', 'result': 'failure', 'customer-key': customer_id}
         workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
@@ -43,11 +43,11 @@ class DeployOvfPackage(OrderManager):
             self.logger.info('OVF Package succesfully deployed.')
 
         # Getting VNF, VNs, VMVNICS detail
-        vnf_id = self.get_order_items('createVapp', self.order_json)[0]['id']
-        vm_id = self.get_order_items('createVm', self.order_json)[0]['id']
-        vm_name = self.get_order_items('createVm', self.order_json)[0]['name']
+        vnf_id = get_order_items('createVapp', self.order_json)[0]['id']
+        vm_id = get_order_items('createVm', self.order_json)[0]['id']
+        vm_name = get_order_items('createVm', self.order_json)[0]['name']
 
-        vns = self.get_order_items('createVn', order_json)
+        vns = get_order_items('createVn', order_json)
         if vns is not None:
             for vn in vns:
                 if 'left' in vn['name']:
@@ -55,7 +55,7 @@ class DeployOvfPackage(OrderManager):
                 elif 'right' in vn['name']:
                     vn_right = vn
 
-        vmvnics = self.get_order_items('createVmVnic', order_json)
+        vmvnics = get_order_items('createVmVnic', order_json)
         vmvnic_ids = []
         vmvnic_names = []
         for vmvnic in vmvnics:
@@ -124,4 +124,4 @@ class DeployOvfPackage(OrderManager):
             return 'FAILURE'
 
         dbman.commit()
-        return 'SUCCESS'
+

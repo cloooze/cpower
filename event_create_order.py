@@ -4,7 +4,6 @@ import sqlite3
 import logging.config
 import ecm_util as ecm_util
 import nso_util as nso_util
-import sys
 import config as c
 from event_manager import OrderManager
 from utils import *
@@ -101,7 +100,7 @@ class CreateOrder(OrderManager):
                 return 'FAILURE'
 
             deploy_ovf_package_file = './json/deploy_ovf_package.json'
-            ovf_package_json = self.load_json_file(deploy_ovf_package_file)
+            ovf_package_json = load_json_file(deploy_ovf_package_file)
             ovf_package_json['tenantName'] = c.ecm_tenant_name
             ovf_package_json['vdc']['id'] = c.ecm_vdc_id
             ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
@@ -143,5 +142,4 @@ class CreateOrder(OrderManager):
             self.logger.error('Custmor workflow ended up in a inconsistent state, please check the logs.')
             return 'FAILURE'
 
-        return 'SUCCESS'
 
