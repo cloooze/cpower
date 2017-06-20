@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
-import logging.config
 import ecm_util as ecm_util
 import nso_util as nso_util
 import config as c
-from db_manager import DBManager
 from ecm_exception import *
-from event_manager import OrderManager
+from event_manager import EventManager
 from utils import *
 
 
@@ -15,30 +13,34 @@ REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
 
-class ModifyService(OrderManager):
+class ModifyService(EventManager):
 
     def __init__(self, order_status, order_id, source_api, order_json):
+        super(ModifyService, self).__init__()
+
         self.order_json = order_json
         self.order_status = order_status
         self.order_id = order_id
         self.source_api = source_api
-        self.dbman = DBManager()
-        self.logger = logging.getLogger('cpower')
+
+    def notify(self):
+        pass
 
     def execute(self):
-        customer_id = get_custom_input_param('Cust_Key', get_custom_input_params('modifyService', self.order_json))
+        modify_service_custom_input_params = get_custom_input_params('modifyService', self.order_json)
+        customer_id = get_custom_input_param('Cust_Key', modify_service_custom_input_params)
 
         operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
         workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
         if self.order_status == 'ERR':
+            self.logger.error(self.order_json['data']['order']['orderMsgs'])
             nso_util.notify_nso(operation_error)
             return 'FAILURE'
 
-        if get_custom_input_param('source', get_custom_input_params('modifyService', self.order_json)) == 'workflow':
-            service = get_order_items('modifyService', self.order_json)[0]
-            service_id = service['id']
-            vnf_id = service['vapps'][0]['id']
+        if get_custom_input_param('source', modify_service_custom_input_params) == 'workflow':
+            modify_service = get_order_items('modifyService', self.order_json)[0]
+            service_id, vnf_id = modify_service['id'], modify_service['vapps'][0]['id']
 
             # Associate service network - vnf into DB
             self.dbman.query('UPDATE vnf SET ntw_service_binding=? WHERE vnf_id=?', ('YES', vnf_id))
@@ -66,11 +68,11 @@ class ModifyService(OrderManager):
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
 
-                self.dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vm_id=?',
+            self.dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vm_id=?',
                         (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
             # Checking if VLinks already exists for the network_service
-                self.dbman.query("SELECT * FROM network_service WHERE customer_id=? AND vlink_id IS NOT ''", (customer_id,))
+            self.dbman.query("SELECT * FROM network_service WHERE customer_id=? AND vlink_id IS NOT ''", (customer_id,))
             row = self.dbman.fetchone()
 
             if not row:  # Creating vLinks
@@ -159,34 +161,32 @@ class ModifyService(OrderManager):
                 pass
             '''
         else:
-            modify_service_cip = get_custom_input_params('modifyService', self.order_json)
-
-            customer_id = get_custom_input_param('Cust_Key', modify_service_cip)
-            vnf_type = get_custom_input_param('vnf_type', modify_service_cip)
+            vnf_type = get_custom_input_param('vnf_type', modify_service_custom_input_params)
 
             # Checking if the needed custom order params are empty
             empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type)
 
             if empty_cop is not None:
-                error_message = "Custom input parameter '%s' not found or empty." % empty_cop
+                error_message = "Custom input parameter [%s] is needed but not found or empty in the request." % empty_cop
                 self.logger.error(error_message)
                 workflow_error['error-code'] = REQUEST_ERROR
                 workflow_error['error-message'] = error_message
                 nso_util.notify_nso(workflow_error)
                 return 'FAILURE'
-            if get_custom_input_param('operation', get_custom_input_params('modifyService', self.order_json)) == 'create':
+
+            if get_custom_input_param('operation', modify_service_custom_input_params) == 'create':
                 try:
                     ovf_package_id = get_ovf_package_id(vnf_type, 'add')
                 except VnfTypeException:
-                    error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
+                    error_message = 'VNF Type [%s] is not supported.' % vnf_type
                     self.logger.error(error_message)
                     workflow_error['error-code'] = REQUEST_ERROR
                     workflow_error['error-message'] = error_message
                     nso_util.notify_nso(workflow_error)
                     return 'FAILURE'
 
-                deploy_ovf_package_file = './json/deploy_ovf_package.json'
-                ovf_package_json = load_json_file(deploy_ovf_package_file)
+                ovf_package_file = './json/deploy_ovf_package.json'
+                ovf_package_json = load_json_file(ovf_package_file)
                 ovf_package_json['tenantName'] = c.ecm_tenant_name
                 ovf_package_json['vdc']['id'] = c.ecm_vdc_id
                 ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
@@ -202,30 +202,34 @@ class ModifyService(OrderManager):
                     # TODO to check here is position tag is specified!!!! c   un problerma, non pu essere fatto qui
                     # TODO settare temporaneamnete la position, e fissarla solo se il deploy e andato bene
 
-
-            elif get_custom_input_param('operation', get_custom_input_params('modifyService', self.order_json)) == 'delete':
+            elif get_custom_input_param('operation', modify_service_custom_input_params) == 'delete':
                 # Getting service_id from order
                 service_id = get_order_items('modifyService')[0]['id']
+
                 # Getting vnf_id from VNF table
-                self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id=? AND vnf_type IS NOT ?',
-                            (service_id, vnf_type))
+                self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id=? AND vnf_type IS NOT ?', (service_id, vnf_type))
+
                 vnf_ids = self.dbman.fetchall()
+
                 if vnf_ids is not None:
                     # Detaching the VNF from Network Service in order to delete the VNF
-                    json_data = load_json_file('json/modify_service.json')
-                    json_data.pop('customInputParams')  # removing customInputParams from JSON
+                    modify_service_json = load_json_file('json/modify_service.json')
+                    modify_service_json.pop('customInputParams')  # removing customInputParams from JSON, not needed here
+
                     for vnf_id in vnf_ids:
-                        json_data['vapps'].append({"id": vnf_id})
+                        modify_service_json['vapps'].append({"id": vnf_id})
                     try:
-                        ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', json_data)
+                        ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
                     except:
                         # TODO
                         pass
 
-                # Sleep 5sec
+                # Sleep 5sec, NEEDED??? to test
+
                 # Deleting the VNF
                 self.dbman.query('SELECT * FROM vnf WHERE ntw_service_id=? AND vnf_type=?', (service_id, vnf_type))
                 row = self.dbman.fetchone()
+
                 if row is not None:
                     row = self.dbman.fetchone()
                     vnf_id = row['vnf_id']

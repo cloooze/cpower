@@ -6,10 +6,11 @@ import ecm_util as ecm_util
 import config as c
 from logging.handlers import *
 from ecm_exception import *
-from event_create_order import CreateOrder
+from event_create_order import CreateEvent
 from event_delete_vn import DeleteVn
 from event_deploy_ovf_package import DeployOvfPackage
 from event_modify_service import ModifyService
+from event_delete_service import DeleteService
 from utils import *
 
 logger = logging.getLogger('cpower')
@@ -52,15 +53,16 @@ def main():
 
     order_json = json.loads(order_resp.text)
 
-    events = {'createOrder': CreateOrder(order_status, order_id, source_api, order_json),
+    events = {'createOrder': CreateEvent(order_status, order_id, source_api, order_json),
               'deployOvfPackage': DeployOvfPackage(order_status, order_id, source_api, order_json),
               'modifyService': ModifyService(order_status, order_id, source_api, order_json),
+              'deleteService': DeleteService(order_status, order_id, source_api, order_json),
               'deleteVn': DeleteVn(order_status, order_id, source_api, order_json)}
     try:
         try:
             event = events[source_api]
         except KeyError:
-            logger.error('Operation %s not handled by workflow.' % source_api)
+            logger.error('Operation [%s] not handled by workflow.' % source_api)
             sys.exit(1)
 
         result = event.execute()

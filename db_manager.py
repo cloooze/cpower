@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
 import sqlite3
-import logging
 from logging.handlers import *
-import config as c
 
 
 class DBManager(object):

@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 
 import sqlite3
-import logging.config
 import ecm_util as ecm_util
 import nso_util as nso_util
 import config as c
-from event_manager import OrderManager
+from event_manager import EventManager
 from utils import *
-from db_manager import DBManager
 from ecm_exception import *
 
 
@@ -16,37 +14,40 @@ REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
 
-class CreateOrder(OrderManager):
+class CreateEvent(EventManager):
 
     def __init__(self, order_status, order_id, source_api, order_json):
+        super(CreateEvent, self).__init__()
+
         self.order_json = order_json
         self.order_status = order_status
         self.order_id = order_id
         self.source_api = source_api
-
-        self.dbman = DBManager()
-        self.logger = logging.getLogger('cpower')
 
     def notify(self):
         pass
 
     def execute(self):
         # Getting customer order params from getOrder response
-        create_order_cop = dict()
+        custom_order_params = dict()
         try:
-            create_order_cop = self.order_json['data']['order']['customOrderParams']  # check if it generates exception
+            custom_order_params = self.order_json['data']['order']['customOrderParams']  # check if it generates exception
         except KeyError:
             # The flow ends up here when has been sent a creteVlink as createOrder from the customworkflow since
             # the order doesn't have any customOrderParams
             pass
 
-        # Checking if order type is createService
-        if get_order_items('createService', self.order_json) is not None:
-            customer_id = get_custom_order_param('Cust_Key', create_order_cop)
-            vnf_type = get_custom_order_param('vnf_type', create_order_cop)
-            rt_left = get_custom_order_param('rt-left', create_order_cop)
-            rt_right = get_custom_order_param('rt-right', create_order_cop)
-            rt_mgmt = get_custom_order_param('rt-mgmt', create_order_cop)
+
+        #######################
+        #  CREATE SERVICE     #
+        #######################
+        create_service = get_order_items('createService', self.order_json)[0]
+        if create_service is not None:
+            customer_id = get_custom_order_param('Cust_Key', custom_order_params)
+            vnf_type = get_custom_order_param('vnf_type', custom_order_params)
+            rt_left = get_custom_order_param('rt-left', custom_order_params)
+            rt_right = get_custom_order_param('rt-right', custom_order_params)
+            rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
 
             operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
@@ -57,19 +58,18 @@ class CreateOrder(OrderManager):
                 return 'FAILURE'
 
             # Checking if the needed custom order params are empty
-            empty_cop = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left, rt_right=rt_right,
-                                        rt_mgmt=rt_mgmt)
+            empty_custom_order_param = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left,
+                                                       rt_right=rt_right, rt_mgmt=rt_mgmt)
 
-            if empty_cop is not None:
-                error_message = "Custom order parameter '%s' not found or empty." % empty_cop
+            if empty_custom_order_param is not None:
+                error_message = "Custom order parameter [%s] is needed but not found or empty in the request." % empty_custom_order_param
                 self.logger.error(error_message)
                 workflow_error['error-code'] = REQUEST_ERROR
                 workflow_error['error-message'] = error_message
                 nso_util.notify_nso(workflow_error)
                 return 'FAILURE'
 
-            service_id = get_order_items('createService', self.order_json)[0]['id']
-            service_name = get_order_items('createService', self.order_json)[0]['name']
+            service_id, service_name  = create_service['id'], create_service['name']
 
             # We got everything we need to proceed:
             # Saving customer and network service info to DB. A check is not needed as NSO should send a
@@ -81,31 +81,28 @@ class CreateOrder(OrderManager):
                 # Customer already in DB, it shouldn't be possible for createService operation
                 pass
 
-            ntw_service_row = (
-                service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
+            ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
             self.dbman.save_network_service(ntw_service_row)
             self.logger.info('Network Service \'%s\' successfully stored to DB.' % service_id)
 
-            # Loading the right ovf package id depending on the requested VNF type.
-            # It is loaded the ovf package 1 as we are in the 'createService' (meaning that the first VNF for the
-            # service is being requested
             try:
                 ovf_package_id = get_ovf_package_id(vnf_type, 'create')
             except VnfTypeException:
-                error_message = 'VNF Type \'%s\' is not supported.' % vnf_type
+                error_message = "VNF Type '%s' is not supported." % vnf_type
                 self.logger.error(error_message)
                 workflow_error['error-code'] = REQUEST_ERROR
                 workflow_error['error-message'] = error_message
                 nso_util.notify_nso(workflow_error)
                 return 'FAILURE'
 
-            deploy_ovf_package_file = './json/deploy_ovf_package.json'
-            ovf_package_json = load_json_file(deploy_ovf_package_file)
+            ovf_package_file = './json/deploy_ovf_package.json'
+            ovf_package_json = load_json_file(ovf_package_file)
             ovf_package_json['tenantName'] = c.ecm_tenant_name
             ovf_package_json['vdc']['id'] = c.ecm_vdc_id
             ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
 
             self.logger.info('Deploying OVF Package %s' % ovf_package_id)
+
             try:
                 ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
             except (ECMReqStatusError, ECMConnectionError) as e:
@@ -114,10 +111,15 @@ class CreateOrder(OrderManager):
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
 
-        elif get_order_items('createVLink', self.order_json) is not None:
-            create_vlink = get_order_items('createVLink', self.order_json)[0]
+
+        #######################
+        #  CREATE VLINK       #
+        #######################
+        create_vlink = get_order_items('createVLink', self.order_json)[0]
+        if create_vlink is not None:
             service_id = create_vlink['service']['id']
             policy_name = create_vlink['name'].split('-')[0] + '_' + create_vlink['name'].split('-')[2]
+            # Fix this, the name is composed customer <customer_id>-SDN-policy, the customer_my might contain a - ?
 
             self.dbman.query('SELECT * FROM network_service WHERE ntw_service_id=?', (service_id,))
             row = self.dbman.fetchone()
@@ -131,8 +133,7 @@ class CreateOrder(OrderManager):
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
 
-            vlink_id = create_vlink['id']
-            vlink_name = create_vlink['name']
+            vlink_id, vlink_name = create_vlink['id'], create_vlink['name']
 
             # Updating table NETWORK_SERVICE with the just created vlink_id and vlink_name
             self.dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?,ntw_policy=?  WHERE ntw_service_id=?',
@@ -141,5 +142,4 @@ class CreateOrder(OrderManager):
         else:
             self.logger.error('Custmor workflow ended up in a inconsistent state, please check the logs.')
             return 'FAILURE'
-
 
