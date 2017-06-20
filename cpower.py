@@ -11,6 +11,7 @@ from event_delete_vn import DeleteVn
 from event_deploy_ovf_package import DeployOvfPackage
 from event_modify_service import ModifyService
 from event_delete_service import DeleteService
+from event_delete_vnf import DeleteVnf
 from utils import *
 
 logger = logging.getLogger('cpower')
@@ -57,7 +58,8 @@ def main():
               'deployOvfPackage': DeployOvfPackage(order_status, order_id, source_api, order_json),
               'modifyService': ModifyService(order_status, order_id, source_api, order_json),
               'deleteService': DeleteService(order_status, order_id, source_api, order_json),
-              'deleteVn': DeleteVn(order_status, order_id, source_api, order_json)}
+              'deleteVn': DeleteVn(order_status, order_id, source_api, order_json),
+              'deleteVapp': DeleteVnf(order_status, order_id, source_api, order_json)}
     try:
         try:
             event = events[source_api]

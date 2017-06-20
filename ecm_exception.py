@@ -2,6 +2,7 @@
 
 
 class ECMException(Exception):
+
     def __init__(self, message, obj):
         self.message = message
         self.obj = obj

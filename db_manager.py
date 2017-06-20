@@ -62,6 +62,7 @@ class DBManager(object):
         self.conn.rollback()
 
     # Table specific save and get functions
+
     # Customer table
     def save_customer(self, row, commit=True):
         q = 'INSERT INTO customer VALUES (?, ?)'
@@ -94,6 +95,10 @@ class DBManager(object):
     def get_vnf(self, vnf_id):
         q = 'SELECT * FROM vnf WHERE vnf_id=?'
         self.query(q, (vnf_id, ))
+
+    def delete_vnf(self, condition, commit=True):
+        q = 'DELETE FROM vnf WHERE vnf_id=?'
+        self.query(q, condition, commit)
 
     # VN GROUP table
 
