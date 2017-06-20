@@ -13,6 +13,8 @@ from db_manager import DBManager
 from ecm_exception import *
 from nso_exception import *
 import config as c
+from create_order import CreateOrder
+from order_manager import OrderManager
 
 logger = logging.getLogger('cpower')
 
@@ -153,6 +155,15 @@ def main():
 
     order_json = json.loads(order_resp.text)
 
+    commands = {'createOrder': CreateOrder()}
+
+    try:
+        command = commands[source_api]
+    except KeyError:
+        logger.error('Operation %s not handled by workflow.' % source_api)
+
+    command.execute()
+
     try:
         if source_api == 'createOrder':
             # Getting customer order params from getOrder response
@@ -242,7 +253,7 @@ def main():
             elif get_order_items('createVLink', order_json) is not None:
                 create_vlink = get_order_items('createVLink', order_json)[0]
                 service_id = create_vlink['service']['id']
-                policy_name = create_vlink['service']['name'].split('-')[0] + '_' + create_vlink['service']['name'].split('-')[2]
+                policy_name = create_vlink['name'].split('-')[0] + '_' + create_vlink['name'].split('-')[2]
 
                 dbman.query('SELECT * FROM network_service WHERE ntw_service_id=?', (service_id,))
                 row = dbman.fetchone()
@@ -297,7 +308,7 @@ def main():
             vmvnic_ids = []
             vmvnic_names = []
             for vmvnic in vmvnics:
-                if 'mgmt' not in vmvnic['name']:
+                if 'mgmt' not in vmvnic['name'] and 'management' not in vmvnic['name']:
                     vmvnic_ids.append(vmvnic['id'])
                     vmvnic_names.append(vmvnic['name'])
 
@@ -566,7 +577,13 @@ def main():
                             pass
 
         elif source_api == 'deleteService':
-            # TODO check if the order is COM
+            workflow_error = {'operation': 'genericError', 'customer-key': ''}
+
+            if order_status == 'ERR':
+                logger.error(order_json['data']['order']['orderMsgs'])
+                nso_util.notify_nso(workflow_error)
+                _exit('FAILURE')
+
             service_id = get_order_items('deleteService', order_json)[0]['id']
             logger.info('Network service %s succesfully deleted. Deleting associated VNs...' % service_id)
 
@@ -575,12 +592,6 @@ def main():
             customer_id = row['customer_id']
 
             operation_error = {'operation': 'deleteService', 'result': 'failure', 'customer-key': customer_id}
-            workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
-
-            if order_status == 'ERR':
-                logger.error(order_json['data']['order']['orderMsgs'])
-                nso_util.notify_nso(operation_error)
-                _exit('FAILURE')
 
             dbman.query('SELECT vn_left_id, vn_right_id FROM network_service ns, vnf, vn_group vn WHERE '
                         'ns.ntw_service_id=? and ns.ntw_service_id=vnf.ntw_service_id and vn.vnf_id=vnf.vnf_id',
@@ -594,8 +605,7 @@ def main():
                 ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
             except (ECMReqStatusError, ECMConnectionError) as e:
                 logger.exception(e)
-                operation_error['operation'] = 'deleteVn'
-                nso_util.notify_nso(operation_error)
+                nso_util.notify_nso(workflow_error)
                 _exit('FAILURE')
         elif source_api == 'deleteVn':
             # TODO check if the order is COM
@@ -610,9 +620,9 @@ def main():
                 vn_group_id = row['vn_group_id']
                 dbman.delete_vn_group(vn_group_id)
 
-                # TODO notify NSO success
+                # TODO notify NSO success with operation DELETE_SERVICE
         else:
-            logger.info('%s operation not handled' % source_api)
+            logger.info('%s operation not handled by the workflow.' % source_api)
 
         _exit('SUCCESS')
     except Exception as e:  # Fix this
