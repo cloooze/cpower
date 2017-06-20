@@ -40,6 +40,22 @@ def get_custom_input_param(param_name, json_data):
     return None
 
 
+def get_order_items(order_item_name, json_data, n=None):
+    """Returns a dictionary representing the items orderItem that matches order_item_name from the ECM getOrder
+    JSON response. None is returned if there is no matching orderItem. If n is specified the returning tuple is
+    truncated."""
+    r = []
+    order_items = json_data['data']['order']['orderItems']
+    for order_item in order_items:
+        item_name = order_item.keys()[0]
+        if item_name == order_item_name:
+            r.append(order_item[item_name])
+    if len(r) > 0:
+        return tuple(r) if n is None else tuple(r)[:n]
+    else:
+        return None
+
+'''
 def get_order_items(order_item_name, json_data):
     """Returns a dictionary representing the single item orderItem that matches order_item_name from the ECM getOrder
     JSON response. None is returned if there is no matching orderItem."""
@@ -53,6 +69,7 @@ def get_order_items(order_item_name, json_data):
         return tuple(r)
     else:
         return None
+'''
 
 
 def load_json_file(file_name):

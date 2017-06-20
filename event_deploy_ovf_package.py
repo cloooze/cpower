@@ -27,8 +27,8 @@ class DeployOvfPackage(EventManager):
 
     def execute(self):
         # OVF structure 1 createVapp, 1 createVm, 3 createVmVnic, 0/2 createVn
-        create_vm = get_order_items('createVm', self.order_json)[0]
-        create_vapp = get_order_items('createVapp', self.order_json)[0]
+        create_vm = get_order_items('createVm', self.order_json, 1)
+        create_vapp = get_order_items('createVapp', self.order_json, 1)
         create_vns = get_order_items('createVn', self.order_json)
         create_vmvnics = get_order_items('createVmVnic', self.order_json)
 

@@ -39,7 +39,7 @@ class ModifyService(EventManager):
             return 'FAILURE'
 
         if get_custom_input_param('source', modify_service_custom_input_params) == 'workflow':
-            modify_service = get_order_items('modifyService', self.order_json)[0]
+            modify_service = get_order_items('modifyService', self.order_json, 1)
             service_id, vnf_id = modify_service['id'], modify_service['vapps'][0]['id']
 
             # Associate service network - vnf into DB
@@ -204,7 +204,7 @@ class ModifyService(EventManager):
 
             elif get_custom_input_param('operation', modify_service_custom_input_params) == 'delete':
                 # Getting service_id from order
-                service_id = get_order_items('modifyService')[0]['id']
+                service_id = get_order_items('modifyService', self.order_json, 1)['id']
 
                 # Getting vnf_id from VNF table
                 self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id=? AND vnf_type IS NOT ?', (service_id, vnf_type))

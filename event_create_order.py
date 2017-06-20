@@ -41,7 +41,7 @@ class CreateEvent(EventManager):
         #######################
         #  CREATE SERVICE     #
         #######################
-        create_service = get_order_items('createService', self.order_json)[0]
+        create_service = get_order_items('createService', self.order_json, 1) #fix this null[0]
         if create_service is not None:
             customer_id = get_custom_order_param('Cust_Key', custom_order_params)
             vnf_type = get_custom_order_param('vnf_type', custom_order_params)
@@ -115,7 +115,7 @@ class CreateEvent(EventManager):
         #######################
         #  CREATE VLINK       #
         #######################
-        create_vlink = get_order_items('createVLink', self.order_json)[0]
+        create_vlink = get_order_items('createVLink', self.order_json, 1)
         if create_vlink is not None:
             service_id = create_vlink['service']['id']
             policy_name = create_vlink['name'].split('-')[0] + '_' + create_vlink['name'].split('-')[2]

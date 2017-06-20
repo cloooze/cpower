@@ -32,7 +32,7 @@ class DeleteService(EventManager):
             nso_util.notify_nso(workflow_error)
             return 'FAILURE'
 
-        delete_service = get_order_items('deleteService', self.order_json)[0]
+        delete_service = get_order_items('deleteService', self.order_json, 1)
         service_id = delete_service['id']
 
         self.logger.info('Network service [%s] succesfully deleted. Deleting associated VNs...' % service_id)
