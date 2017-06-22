@@ -3,6 +3,7 @@
 import json
 from nso_exception import *
 import os
+import datetime
 
 
 def get_empty_param(**kargs):
@@ -51,7 +52,7 @@ def get_order_items(order_item_name, json_data, n=None):
         if item_name == order_item_name:
             r.append(order_item[item_name])
     if len(r) > 0:
-        return tuple(r) if n is None else tuple(r)[:n]
+        return tuple(r) if n is None else tuple(r)[:n][0]
     else:
         return None
 
@@ -87,3 +88,10 @@ def get_ovf_package_id(vnf_type, operation):
                 if v['operation'] == operation:
                     return v['id']
     raise VnfTypeException
+
+
+def get_now(format=None):
+    if format is None:
+        return datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3]
+    else:
+        return datetime.datetime.now().strftime(format)[:-3]

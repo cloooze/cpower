@@ -55,12 +55,13 @@ class DeployOvfPackage(EventManager):
                 elif 'right' in vn['name']:
                     vn_right = vn
 
-        vmvnic_ids, vmvnic_names = list(), list()
+        vmvnic_ids, vmvnic_names, vmvnic_ips = list(), list(), list()
 
         for vmvnic in create_vmvnics:
             if 'mgmt' not in vmvnic['name'] and 'management' not in vmvnic['name']:
                 vmvnic_ids.append(vmvnic['id'])
                 vmvnic_names.append(vmvnic['name'])
+                vmvnic_ips.append(vmvnic['internalIpAddress'][0])
 
         # Getting ntw service id and vnftype for this customer (assuming that 1 customer can have max 1 ntw service)
         self.dbman.query('SELECT ntw_service_id, vnf_type FROM network_service ns WHERE ns.customer_id = ?',
@@ -95,7 +96,7 @@ class DeployOvfPackage(EventManager):
         vn_group_row = (vnf_id, vn_left['id'], vn_left['name'], vn_left_resp_json['data']['vn']['vimObjectId'],
                         vn_right['id'], vn_right['name'], vn_right_resp_json['data']['vn']['vimObjectId'])
         vnf_row = (vnf_id, service_id, vnf_type, '1', 'NO')
-        vm_row = (vm_id, vnf_id, vm_name, vmvnic_ids[0], vmvnic_names[0], '', vmvnic_ids[1], vmvnic_names[1], '')
+        vm_row = (vm_id, vnf_id, vm_name, vmvnic_ids[0], vmvnic_names[0], vmvnic_ips[0],'', vmvnic_ids[1], vmvnic_names[1], vmvnic_ips[1], '')
 
         try:
             self.dbman.save_vn_group(vn_group_row, False)
@@ -107,9 +108,8 @@ class DeployOvfPackage(EventManager):
             # TODO notify NSO
             return 'FAILURE'
 
-        dbman.commit()
+        self.dbman.commit()
 
-        self.logger.info('Information related to the deployed OVF saved into database.')
         self.logger.info('Associating Network Service to VNF...')
 
         modify_service_file = './json/modify_service.json'

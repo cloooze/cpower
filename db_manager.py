@@ -111,17 +111,20 @@ class DBManager(object):
         q = 'DELETE FROM vn_group WHERE vn_group_id=?'
         self.query(q, condition, commit)
 
-    def get_vnf(self, vnf_id):
-        q = 'SELECT * FROM vnf WHERE vnf_id=?'
-        self.query(q, (vnf_id, ))
+    # VM table
 
     def save_vm(self, row, commit=True):
-        q = 'INSERT INTO vm VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        q = 'INSERT INTO vm VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
 
     def get_vm(self, vm_id):
         q = 'SELECT * FROM vm WHERE vm_id=?'
         self.query(q, (vm_id, ))
+
+    def delete_vm(self, condition, commit=True):
+        q = 'DELETE FROM vm WHERE vm_id=?'
+        self.query(q, condition, commit)
+
 
     def save_order(self, row, commit=True):
         q = 'INSERT INTO orders VALUES (?, ?, ?)'

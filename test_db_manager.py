@@ -149,7 +149,7 @@ class DBManagerTest(unittest.TestCase):
         self.assertIsNone(self.dbman.fetchone())
 
     def test_save_vm_01(self):
-        t_1 = ('vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001')
+        t_1 = ('vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001', 'vm_001')
         self.dbman.save_vm(t_1)
         self.dbman.get_vm('vm_01')
         self.assertIsNone(self.dbman.fetchone())

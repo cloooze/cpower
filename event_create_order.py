@@ -14,10 +14,10 @@ REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
 
-class CreateEvent(EventManager):
+class CreateOrder(EventManager):
 
     def __init__(self, order_status, order_id, source_api, order_json):
-        super(CreateEvent, self).__init__()
+        super(CreateOrder, self).__init__()
 
         self.order_json = order_json
         self.order_status = order_status
@@ -37,11 +37,12 @@ class CreateEvent(EventManager):
             # the order doesn't have any customOrderParams
             pass
 
-
         #######################
         #  CREATE SERVICE     #
         #######################
-        create_service = get_order_items('createService', self.order_json, 1) #fix this null[0]
+        create_service = get_order_items('createService', self.order_json, 1)
+        create_vlink = get_order_items('createVLink', self.order_json, 1)
+
         if create_service is not None:
             customer_id = get_custom_order_param('Cust_Key', custom_order_params)
             vnf_type = get_custom_order_param('vnf_type', custom_order_params)
@@ -111,12 +112,10 @@ class CreateEvent(EventManager):
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
 
-
         #######################
         #  CREATE VLINK       #
         #######################
-        create_vlink = get_order_items('createVLink', self.order_json, 1)
-        if create_vlink is not None:
+        elif create_vlink is not None:
             service_id = create_vlink['service']['id']
             policy_name = create_vlink['name'].split('-')[0] + '_' + create_vlink['name'].split('-')[2]
             # Fix this, the name is composed customer <customer_id>-SDN-policy, the customer_my might contain a - ?
@@ -140,6 +139,5 @@ class CreateEvent(EventManager):
                         (vlink_id, vlink_name, policy_name, service_id))
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
         else:
-            self.logger.error('Custmor workflow ended up in a inconsistent state, please check the logs.')
-            return 'FAILURE'
+            self.logger.info('Received a [createOrder] request but neither [createService] nor [createVLink] order items in it.')
 
