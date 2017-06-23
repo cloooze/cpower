@@ -126,7 +126,7 @@ class ModifyService(EventManager):
                 extensions_input_create['extensions-input']['network-policy'][
                     'dst_address'] = 'default-domain:cpower:' + vn_right_name
                 l = list()
-                l.append(customer_id + '-' + vnf_id)
+                l.append(customer_id + '-' + vnf_type)
                 extensions_input_create['extensions-input']['network-policy']['policy-rule'] = l
 
                 vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(

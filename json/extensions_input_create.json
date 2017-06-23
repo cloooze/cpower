@@ -7,13 +7,13 @@
 			"right_virtual_network_fqdn": "default-domain:cpower:$vnRight_name",
 			"service_template": "cpower-template",
 			"port-tuple": {
-				"name": "port-tuple-$si_name",
+				"name": "port-tuple-$customerid-$vnfid",
 				"si_name": "$customer_id-$vnf_name"
 			},
 			"update-vmvnic": {
 				"right": "$vnRightVimObjectId",
 				"left": "$vnLeftVimObjectId",
-				"port-tuple": "port-tuple-$si_name"
+				"port-tuple": "port-tuple-$customerid-$vnfid"
 			}
 		},
 		"network-policy": {
