@@ -37,6 +37,8 @@ class CreateOrder(EventManager):
             # the order doesn't have any customOrderParams
             pass
 
+        #TODO check if orderstatus is COM or ERR
+
         #######################
         #  CREATE SERVICE     #
         #######################
@@ -117,8 +119,9 @@ class CreateOrder(EventManager):
         #######################
         elif create_vlink is not None:
             service_id = create_vlink['service']['id']
-            policy_name = create_vlink['name'].split('-')[0] + '_' + create_vlink['name'].split('-')[2]
-            # Fix this, the name is composed customer <customer_id>-SDN-policy, the customer_my might contain a - ?
+            ex_input = create_vlink['customInputParams'][0]['value']
+            ex_input_s = json.loads(ex_input)
+            policy_rule = ex_input_s['extensions-input']['service-instance']['si_name']
 
             self.dbman.query('SELECT * FROM network_service WHERE ntw_service_id=?', (service_id,))
             row = self.dbman.fetchone()
@@ -136,7 +139,7 @@ class CreateOrder(EventManager):
 
             # Updating table NETWORK_SERVICE with the just created vlink_id and vlink_name
             self.dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?,ntw_policy=?  WHERE ntw_service_id=?',
-                        (vlink_id, vlink_name, policy_name, service_id))
+                        (vlink_id, vlink_name, policy_rule, service_id))
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
         else:
             self.logger.info('Received a [createOrder] request but neither [createService] nor [createVLink] order items in it.')

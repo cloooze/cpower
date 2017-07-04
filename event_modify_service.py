@@ -71,66 +71,67 @@ class ModifyService(EventManager):
             self.dbman.query('UPDATE vm SET vm_vnic1_vimobject_id=?,vm_vnic2_vimobject_id=? WHERE vm_id=?',
                         (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
-            # Checking if VLinks already exists for the network_service
+            # Getting information needed for filling the extensions-input
+            # Getting rt_left rt_right
+            self.dbman.query("SELECT * FROM network_service WHERE customer_id=?", (customer_id,))
+            row = self.dbman.fetchone()
+            rt_left = row['rt_left']
+            rt_right = row['rt_right']
+            ntw_policy = row['ntw_policy']
+
+            # Getting VNs info
+            self.dbman.query('SELECT * FROM vn_group WHERE vnf_id=?', (vnf_id,))
+            row = self.dbman.fetchone()
+            vn_left_name = row['vn_left_name']
+            vn_right_name = row['vn_right_name']
+            vn_left_vim_object_id = row['vn_left_vimobject_id']
+            vn_right_vim_object_id = row['vn_right_vimobject_id']
+
+            # Getting VNF type
+            self.dbman.query('SELECT vnf_type FROM vnf WHERE vnf_id=?', (vnf_id,))
+            row = self.dbman.fetchone()
+            vnf_type = row['vnf_type']
+
+            # Getting create_vlink JSON file
+            vlink_json = load_json_file('json/create_vlink.json')
+            vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
+            vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
+
+            # Checking if VLinks already exists for the given Network Service
             self.dbman.query("SELECT * FROM network_service WHERE customer_id=? AND vlink_id IS NOT ''", (customer_id,))
             row = self.dbman.fetchone()
 
-            if not row:  # Creating vLinks
-                # Getting rt_left rt_right
-                self.dbman.query("SELECT * FROM network_service WHERE customer_id=? AND vlink_id IS ''", (customer_id,))
-                row = self.dbman.fetchone()
-                rt_left = row['rt_left']
-                rt_right = row['rt_right']
-                # Getting VNs info
-                self.dbman.query('SELECT * FROM vn_group WHERE vnf_id=?', (vnf_id,))
-                row = self.dbman.fetchone()
-                vn_left_name = row['vn_left_name']
-                vn_right_name = row['vn_right_name']
-                vn_left_vim_object_id = row['vn_left_vimobject_id']
-                vn_right_vim_object_id = row['vn_right_vimobject_id']
-                # Getting VNF type
-                self.dbman.query('SELECT vnf_type FROM vnf WHERE vnf_id=?', (vnf_id,))
-                row = self.dbman.fetchone()
-                vnf_type = row['vnf_type']
-                # Creating VLinks and CPs
-                vlink_json = load_json_file('json/create_vlink.json')
-                vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
-                vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
+            ex_input = None
+            if not row:
+                ex_input = load_json_file('json/extensions_input_create.json')
+            else:
+                ex_input = load_json_file('json/extensions_input_modify.json')
 
-                extensions_input_create = load_json_file('json/extensions_input_create.json')
-                extensions_input_create['extensions-input']['service-instance'][
-                    'si_name'] = customer_id + '-' + vnf_type
-                extensions_input_create['extensions-input']['service-instance'][
-                    'left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_left_name
-                extensions_input_create['extensions-input']['service-instance'][
-                    'right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_right_name
-                extensions_input_create['extensions-input']['service-instance']['port-tuple'][
-                    'name'] = 'port-tuple' + customer_id + '-' + vnf_id
-                extensions_input_create['extensions-input']['service-instance']['port-tuple'][
-                    'si_name'] = customer_id + '-' + vnf_type
-                extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['left'] = (
-                vm_vnic1_vimobject_id if 'left' in vm_vnic1_name else vm_vnic2_vimobject_id)
-                extensions_input_create['extensions-input']['service-instance']['update-vmvnic']['right'] = (
-                vm_vnic2_vimobject_id if 'right' in vm_vnic2_name else vm_vnic1_vimobject_id)
-                extensions_input_create['extensions-input']['service-instance']['update-vmvnic'][
-                    'port-tuple'] = 'port-tuple' + customer_id + '-' + vnf_id
-                extensions_input_create['extensions-input']['update-vn-RT']['right_VN'] = vn_right_vim_object_id
-                extensions_input_create['extensions-input']['update-vn-RT']['right_RT'] = rt_right
-                extensions_input_create['extensions-input']['update-vn-RT']['left_VN'] = vn_left_vim_object_id
-                extensions_input_create['extensions-input']['update-vn-RT']['left_RT'] = rt_left
-                extensions_input_create['extensions-input']['update-vn-RT'][
-                    'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
-                extensions_input_create['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
-                extensions_input_create['extensions-input']['network-policy'][
-                    'src_address'] = 'default-domain:cpower:' + vn_left_name
-                extensions_input_create['extensions-input']['network-policy'][
-                    'dst_address'] = 'default-domain:cpower:' + vn_right_name
+            # Common params
+            ex_input['extensions-input']['service-instance']['si_name'] = customer_id + '-' + vnf_type
+            ex_input['extensions-input']['service-instance']['left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_left_name
+            ex_input['extensions-input']['service-instance']['right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_right_name
+            ex_input['extensions-input']['service-instance']['port-tuple']['name'] = 'porttuple-' + customer_id + '-' + vnf_id
+            ex_input['extensions-input']['service-instance']['port-tuple']['si_name'] = customer_id + '-' + vnf_type
+            ex_input['extensions-input']['service-instance']['update-vmvnic']['left'] = (vm_vnic1_vimobject_id if 'left' in vm_vnic1_name else vm_vnic2_vimobject_id)
+            ex_input['extensions-input']['service-instance']['update-vmvnic']['right'] = (vm_vnic2_vimobject_id if 'right' in vm_vnic2_name else vm_vnic1_vimobject_id)
+            ex_input['extensions-input']['service-instance']['update-vmvnic']['port-tuple'] = 'porttuple-' + customer_id + '-' + vnf_id
+            ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
+            ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_left_name
+            ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_right_name
+
+            if not row: # Creating vLinks
+                ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_right_vim_object_id
+                ex_input['extensions-input']['update-vn-RT']['right_RT'] = rt_right
+                ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_left_vim_object_id
+                ex_input['extensions-input']['update-vn-RT']['left_RT'] = rt_left
+                ex_input['extensions-input']['update-vn-RT']['network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
+
                 l = list()
                 l.append(customer_id + '-' + vnf_type)
-                extensions_input_create['extensions-input']['network-policy']['policy-rule'] = l
+                ex_input['extensions-input']['network-policy']['policy-rule'] = l
 
-                vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(
-                    extensions_input_create)
+                vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
 
                 try:
                     ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
@@ -139,27 +140,20 @@ class ModifyService(EventManager):
                     # TODO notify NSO
                     return 'FAILURE'
             else:  # Modifying Vlinks
-                # TODO
-                # invoke the modifyVlink with ex input extensions_input_modify
-                pass
-            '''
-            elif get_custom_input_param('vnf-position', get_custom_input_params('modifyService', order_json)) == '1':
-                # Modifying... TODO to reimplement from skretch
-                vlink_id = row['vlink_id']
-                modify_vlink_json = load_json_file('json/modify_vlink.json')
-                extensions_input_modify = load_json_file('json/extensions_input_modify.json')
-                # TODO filliong ex inputs
-                modify_vlink_json['customInputParams'][0]['value'] = str(extensions_input_modify)
+                # Getting existing ntw_policy from Network Service table
+                l = list()
+                l.append(ntw_policy)
+                l.append(customer_id + '-' + vnf_type)
+                ex_input['extensions-input']['network-policy']['policy-rule'] = l 
+
+                vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+
                 try:
-                    ecm_util.invoke_ecm_api(vlink_id, c.ecm_service_api_vlinks, 'PUT', modify_vlink_json)
-                except (ECMReqStatusError, ECMConnectionError) as e:
-                    logger.exception(e)
-                    nso_util.notify_nso(operation_error)
-                    _exit('FAILURE')
-            elif get_custom_input_param('vnf-position', get_custom_input_params('modifyService', order_json)) == '2':
-                # TODO
-                pass
-            '''
+                    ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+                except ECMConnectionError as e:
+                    self.logger.exception(e)
+                    # TODO notify NSO
+                    return 'FAILURE'
         else:
             vnf_type = get_custom_input_param('vnf_type', modify_service_custom_input_params)
 

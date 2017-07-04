@@ -1,7 +1,7 @@
 {
 	"extensions-input": {
 		"service-instance": {
-			"operation": "",
+			"operation": "update",
 			"si_name": "",
 			"left_virtual_network_fqdn": "",
 			"right_virtual_network_fqdn": "",
@@ -14,14 +14,14 @@
 				"right": "",
 				"left": "",
 				"port_tuple": ""
-			},
-			"network-policy": {
+			}
+		},
+		"network-policy": {
 				"operation": "update",
 				"policy_name": "",
 				"policy-rule": [],
 				"dst_address": "",
 				"src_address": ""
 			}
-		}
 	}
 }
