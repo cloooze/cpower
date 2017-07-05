@@ -72,6 +72,7 @@ class ModifyService(EventManager):
                         (vm_vnic1_vimobject_id, vm_vnic2_vimobject_id, vm_id))
 
             # Getting information needed for filling the extensions-input
+
             # Getting rt_left rt_right
             self.dbman.query("SELECT * FROM network_service WHERE customer_id=?", (customer_id,))
             row = self.dbman.fetchone()
@@ -144,7 +145,7 @@ class ModifyService(EventManager):
                 l = list()
                 l.append(ntw_policy)
                 l.append(customer_id + '-' + vnf_type)
-                ex_input['extensions-input']['network-policy']['policy-rule'] = l 
+                ex_input['extensions-input']['network-policy']['policy-rule'] = l
 
                 vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
 
