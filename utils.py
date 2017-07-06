@@ -95,3 +95,126 @@ def get_now(format=None):
         return datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3]
     else:
         return datetime.datetime.now().strftime(format)[:-3]
+
+
+# CREATE ORDER JSON UTILS
+
+def get_cop(tag, value):
+    j = dict(
+        {
+            'tag': tag,
+            'value': value
+        }
+    )
+    return j
+
+
+def get_create_vapp(order_item_id, vapp_name, vdc_id, vim_zone_name):
+    j = dict(
+        {
+            'orderItemId': order_item_id,
+            'creteVapp': {
+                'name': vapp_name,
+                'vdc': {
+                    'id': vdc_id
+                },
+                'vimZoneName': vim_zone_name
+            }
+        }
+    )
+    return j
+
+
+def get_create_vm(order_item_id, vdc_id, vm_name, image_name, vmhd_name, order_item_ref_vapp):
+    j = dict(
+        {
+            'orderItemId': order_item_id,
+            'creteVm': {
+                'vdc': {
+                    'id': vdc_id
+                },
+                'name': vm_name,
+                'bootSource': {
+                    'imageName': image_name
+                },
+                'vmhdName': vmhd_name,
+                'vapp': {
+                    'orderItemRef': order_item_ref_vapp
+                }
+            }
+        }
+
+    )
+    return j
+
+
+def get_create_vn(order_item_id, vdc_id, vn_name, vn_description):
+    j = dict(
+        {
+            'orderItemId': order_item_id,
+            'createVn': {
+                'vdc': {
+                    'id': vdc_id
+                },
+                'name': vn_name,
+                'description': vn_description,
+                'ipVersion': 'IPv4',
+                'cidrSize': '30',
+                'enabled': 'true',
+                'dhcpEnabled': 'true',
+                'category': 'L3'
+            }
+        }
+    )
+    return j
+
+
+def get_crete_vmvnic_id(order_item_id, vn_id, order_item_ref_vm, vmvnic_description):
+    j = dict(
+        {
+            'orderItemId': order_item_id,
+            "vn": {
+                "id": vn_id
+            },
+            "vm": {
+                "orderItemRef": order_item_ref_vm
+            },
+            "description": vmvnic_description
+        }
+    )
+    return j
+
+
+def get_crete_vmvnic_orderref(order_item_id, order_item_ref_vn, order_item_ref_vm, vmvnic_description):
+    j = dict(
+        {
+            'orderItemId': order_item_id,
+            "vn": {
+                "orderItemRef": order_item_ref_vn
+            },
+            "vm": {
+                "orderItemRef": order_item_ref_vm
+            },
+            "description": vmvnic_description
+        }
+    )
+    return j
+
+#TODO to delete
+
+
+order = dict(
+    {
+        'tenantName': 'nsotenant',
+        'customOrderParams': [
+            get_cop('prova', 'prova'),
+            get_cop('prova2', 'prova2')
+        ],
+        'orderItems': [
+            get_create_vapp('1', 'prova_vapp', 'prova_vdc', 'prova_vim'),
+            get_crete_vn('2', 'prova_vdc', 'vn_name', 'vn_desc')
+        ]
+    }
+)
+
+print order

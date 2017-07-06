@@ -88,6 +88,27 @@ class CreateOrder(EventManager):
             self.dbman.save_network_service(ntw_service_row)
             self.logger.info('Network Service \'%s\' successfully stored to DB.' % service_id)
 
+            # Create order
+
+
+            order = dict(
+                {
+                    'tenantName': c.ecm_tenant_name,
+                    'customOrderParams': [],
+                    'orderItems': [
+                        get_create_vapp('', '', '', ''),
+                        get_create_vm('', '', '', '', '', ''),
+                        get_create_vn('', '', '', ''),
+                        get_create_vn('', '', '', '')
+                    ]
+                }
+            )
+
+
+
+            # TODO old implementation (do not delete yet)
+
+            '''
             try:
                 ovf_package_id = get_ovf_package_id(vnf_type, 'create')
             except VnfTypeException:
@@ -113,7 +134,7 @@ class CreateOrder(EventManager):
                 operation_error['operation'] = 'createVnf'
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
-
+            '''
         #######################
         #  CREATE VLINK       #
         #######################
