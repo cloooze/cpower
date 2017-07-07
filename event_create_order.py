@@ -4,7 +4,7 @@ import sqlite3
 import ecm_util as ecm_util
 import nso_util as nso_util
 import config as c
-from event_manager import EventManager
+from event import Event
 from utils import *
 from ecm_exception import *
 
@@ -14,7 +14,7 @@ REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
 
-class CreateOrder(EventManager):
+class CreateOrder(Event):
 
     def __init__(self, order_status, order_id, source_api, order_json):
         super(CreateOrder, self).__init__()
@@ -100,12 +100,12 @@ class CreateOrder(EventManager):
 
             i = 1
             for vnf_type in vnf_list:
-                order_items.append(get_create_vapp(i, customer_id + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
-                order_items.append(get_create_vm(i+1, c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, '1'))
-                order_items.append(get_create_vmvnic(i+2, vnf_type + 'vnic left name', '99', i+1, 'desc'))
-                order_items.append(get_create_vmvnic(i+3, vnf_type + 'vnic right name', '100', i+1, 'desc'))
-                order_items.append(get_create_vmvnic(i + 3, vnf_type + 'vnic right name', i + 1, 'desc', 'TODO_id_vn_mgmt'))
-                i += 5
+                order_items.append(get_create_vapp(str(i), customer_id + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
+                order_items.append(get_create_vm(str(i+1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
+                order_items.append(get_create_vmvnic(str(i+2), vnf_type + 'vnic left name', '99', str(i+1), 'desc'))
+                order_items.append(get_create_vmvnic(str(i+3), vnf_type + 'vnic right name', '100', str(i+1), 'desc'))
+                #order_items.append(get_create_vmvnic(str(i+4), vnf_type + 'vnic mgmt name', '', str(i+1), 'desc', 'TODO_id_vn_mgmt'))
+                i += 4 #change to 5
 
             order = dict(
                 {

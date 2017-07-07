@@ -33,14 +33,14 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
                                  verify=False)
             elif http_verb == 'POST':
                 resp = requests.post('%s%s' % (c.ecm_server_address, api),
-                                     data=json.dumps(json_data),
+                                     data=json.dumps(json_data, sort_keys=True),
                                     timeout=c.ecm_service_timeout,
                                     headers=get_ecm_api_auth(),
                                     verify=False)
                 logger.debug("Sending data: %s" % json_data)
             elif http_verb == 'PUT':
                 resp = requests.put('%s%s%s' % (c.ecm_server_address, api, param),
-                                     data=json.dumps(json_data),
+                                     data=json.dumps(json_data, sort_keys=True),
                                      timeout=c.ecm_service_timeout,
                                      headers=get_ecm_api_auth(),
                                      verify=False)
@@ -59,6 +59,8 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
         else:
             return resp
     raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
+
+# deprecato
 
 
 def deploy_ovf_package(ovf_package_id, json_data):

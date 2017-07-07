@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from event_manager import EventManager
+from event import Event
 import nso_util
 
 INTERNAL_ERROR = '100'
@@ -8,7 +8,7 @@ REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
 
-class DeleteVn(EventManager):
+class DeleteVn(Event):
 
     def __init__(self, order_status, order_id, source_api, order_json):
         super(DeleteVn, self).__init__()

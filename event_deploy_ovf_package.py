@@ -4,7 +4,7 @@ import ecm_util as ecm_util
 import nso_util as nso_util
 import config as c
 from ecm_exception import *
-from event_manager import EventManager
+from event import Event
 from utils import *
 
 INTERNAL_ERROR = '100'
@@ -12,7 +12,7 @@ REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
 
-class DeployOvfPackage(EventManager):
+class DeployOvfPackage(Event):
 
     def __init__(self, order_status, order_id, source_api, order_json):
         super(DeployOvfPackage, self).__init__()
