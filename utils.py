@@ -102,23 +102,26 @@ def get_now(format=None):
 def get_cop(tag, value):
     j = dict(
         {
-            'tag': tag,
-            'value': value
+            "tag": tag,
+            "value": value
         }
     )
     return j
 
 
-def get_create_vapp(order_item_id, vapp_name, vdc_id, vim_zone_name):
+def get_create_vapp(order_item_id, vapp_name, vdc_id, vim_zone_name, service_id):
     j = dict(
         {
             "orderItemId": order_item_id,
-            "creteVapp": {
+            "createVapp": {
                 "name": vapp_name,
                 "vdc": {
                     "id": vdc_id
                 },
-                "vimZoneName": vim_zone_name
+                "vimZoneName": vim_zone_name,
+                "services": [{
+                        "id": service_id
+                    }]
             }
         }
     )
@@ -129,7 +132,7 @@ def get_create_vm(order_item_id, vdc_id, vm_name, image_name, vmhd_name, order_i
     j = dict(
         {
             "orderItemId": order_item_id,
-            "creteVm": {
+            "createVm": {
                 "vdc": {
                     "id": vdc_id
                 },

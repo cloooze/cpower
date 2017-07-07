@@ -88,22 +88,29 @@ class CreateOrder(EventManager):
 
             # Create order
 
+            # TODO to move in config
             csr1000_image_name = 'csr1000v-universalk9.16.04.01'
+            fortinet_image_name = 'todo'
 
             order_items = list()
+
+            order_items.append(get_create_vn('99', c.ecm_vdc_id, customer_id + '-left', 'Virtual Network left'))
+            order_items.append(get_create_vn('100', c.ecm_vdc_id, customer_id + '-right', 'Virtual Network right'))
+
+            i = 1
             for vnf_type in vnf_list:
-                order_items.append(get_create_vapp('1', customer_id + '_vapp_name', c.ecm_vdc_id, 'cpowerzone'))
-                order_items.append(get_create_vm('2', c.ecm_vdc_id, customer_id + '-vm_csr1000v', csr1000_image_name, 'm1.small', '1'))
-                order_items.append(get_create_vn('3', c.ecm_vdc_id, customer_id + '-left', 'Virtual Network left'))
-                order_items.append(get_create_vn('4', c.ecm_vdc_id, customer_id + '-right', 'Virtual Network right'))
-                order_items.append(get_create_vmvnic('5', 'vnic left name', '3', '2', 'desc'))
-                order_items.append(get_create_vmvnic('6', 'vnic right name', '4', '2', 'desc'))
+                order_items.append(get_create_vapp(i, customer_id + '_vapp_name', c.ecm_vdc_id, 'Cpower', service_id))
+                order_items.append(get_create_vm(i+1, c.ecm_vdc_id, customer_id + '-vm_csr1000v', csr1000_image_name, 'm1.small', '1'))
+                order_items.append(get_create_vmvnic(i+2, 'vnic left name', '99', i+1, 'desc'))
+                order_items.append(get_create_vmvnic(i+3, 'vnic right name', '100', i+1, 'desc'))
+                order_items.append(get_create_vmvnic(i + 3, 'vnic right name', i + 1, 'desc', 'TODO_id_vn_mgmt'))
+                i += 5
 
             order = dict(
                 {
-                    'tenantName': c.ecm_tenant_name,
-                    'customOrderParams': [get_cop('next_action', 'associate')],
-                    'orderItems': order_items
+                    "tenantName": c.ecm_tenant_name,
+                    "customOrderParams": [get_cop('next_action', 'associate')],
+                    "orderItems": order_items
                 }
             )
 
