@@ -48,7 +48,7 @@ class CreateOrder(EventManager):
             rt_left = get_custom_order_param('rt-left', custom_order_params)
             rt_right = get_custom_order_param('rt-right', custom_order_params)
             rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
-            vnf_list = get_custom_order_param('vnf_list', custom_order_params)
+            vnf_list = get_custom_order_param('vnf_list', custom_order_params).split(',')
 
             operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
@@ -96,8 +96,8 @@ class CreateOrder(EventManager):
                 order_items.append(get_create_vm('2', c.ecm_vdc_id, customer_id + '-vm_csr1000v', csr1000_image_name, 'm1.small', '1'))
                 order_items.append(get_create_vn('3', c.ecm_vdc_id, customer_id + '-left', 'Virtual Network left'))
                 order_items.append(get_create_vn('4', c.ecm_vdc_id, customer_id + '-right', 'Virtual Network right'))
-                order_items.append(get_create_vmvnic('5', '3', '2', 'desc'))
-                order_items.append(get_create_vmvnic('6', '4', '2', 'desc'))
+                order_items.append(get_create_vmvnic('5', 'vnic left name', '3', '2', 'desc'))
+                order_items.append(get_create_vmvnic('6', 'vnic right name', '4', '2', 'desc'))
 
             order = dict(
                 {
@@ -107,7 +107,6 @@ class CreateOrder(EventManager):
                 }
             )
 
-            self.logger.info('Sending data %s' % order)
             try:
                 ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
             except (ECMReqStatusError, ECMConnectionError) as e:

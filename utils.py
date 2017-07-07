@@ -112,13 +112,13 @@ def get_cop(tag, value):
 def get_create_vapp(order_item_id, vapp_name, vdc_id, vim_zone_name):
     j = dict(
         {
-            'orderItemId': order_item_id,
-            'creteVapp': {
-                'name': vapp_name,
-                'vdc': {
-                    'id': vdc_id
+            "orderItemId": order_item_id,
+            "creteVapp": {
+                "name": vapp_name,
+                "vdc": {
+                    "id": vdc_id
                 },
-                'vimZoneName': vim_zone_name
+                "vimZoneName": vim_zone_name
             }
         }
     )
@@ -128,18 +128,18 @@ def get_create_vapp(order_item_id, vapp_name, vdc_id, vim_zone_name):
 def get_create_vm(order_item_id, vdc_id, vm_name, image_name, vmhd_name, order_item_ref_vapp):
     j = dict(
         {
-            'orderItemId': order_item_id,
-            'creteVm': {
-                'vdc': {
-                    'id': vdc_id
+            "orderItemId": order_item_id,
+            "creteVm": {
+                "vdc": {
+                    "id": vdc_id
                 },
-                'name': vm_name,
-                'bootSource': {
-                    'imageName': image_name
+                "name": vm_name,
+                "bootSource": {
+                    "imageName": image_name
                 },
-                'vmhdName': vmhd_name,
-                'vapp': {
-                    'orderItemRef': order_item_ref_vapp
+                "vmhdName": vmhd_name,
+                "vapp": {
+                    "orderItemRef": order_item_ref_vapp
                 }
             }
         }
@@ -151,35 +151,38 @@ def get_create_vm(order_item_id, vdc_id, vm_name, image_name, vmhd_name, order_i
 def get_create_vn(order_item_id, vdc_id, vn_name, vn_description):
     j = dict(
         {
-            'orderItemId': order_item_id,
-            'createVn': {
-                'vdc': {
-                    'id': vdc_id
+            "orderItemId": order_item_id,
+            "createVn": {
+                "vdc": {
+                    "id": vdc_id
                 },
-                'name': vn_name,
-                'description': vn_description,
-                'ipVersion': 'IPv4',
-                'cidrSize': '30',
-                'enabled': 'true',
-                'dhcpEnabled': 'true',
-                'category': 'L3'
+                "name": vn_name,
+                "description": vn_description,
+                "ipVersion": 'IPv4',
+                "cidrSize": '30',
+                "enabled": 'true',
+                "dhcpEnabled": 'true',
+                "category": 'L3'
             }
         }
     )
     return j
 
 
-def get_create_vmvnic(order_item_id, order_item_ref_vn, order_item_ref_vm, vmvnic_description, vn_id=None):
+def get_create_vmvnic(order_item_id, vmvnic_name, order_item_ref_vn, order_item_ref_vm, vmvnic_description, vn_id=None):
     j = dict(
         {
-            'orderItemId': order_item_id,
-            "vn":
-                ({'orderItemRef': order_item_ref_vn} if vn_id is None else {'vn_id': vn_id})
-            ,
-            "vm": {
-                "orderItemRef": order_item_ref_vm
-            },
-            "description": vmvnic_description
+            "orderItemId": order_item_id,
+            "createVmVnic": {
+                "name": vmvnic_name,
+                "vn":
+                    ({"orderItemRef": order_item_ref_vn} if vn_id is None else {"vn_id": vn_id})
+                ,
+                "vm": {
+                    "orderItemRef": order_item_ref_vm
+                },
+                "description": vmvnic_description
+            }
         }
     )
     return j
