@@ -150,7 +150,7 @@ class CreateOrder(Event):
         else:
             #self.logger.info('Received a [createOrder] request but neither [createService] nor [createVLink] order items in it.')
             self.logger.info('Saving information about VNF into database.')
-            service_id = get_custom_order_param('service_id', self.order_json)
+            service_id = get_custom_order_param('service_id', custom_order_params)
             create_vnfs = get_order_items('createVapp', self.order_json)
             create_vns = get_order_items('createVn', self.order_json)
 
@@ -167,40 +167,46 @@ class CreateOrder(Event):
 
                 for vmvnic in create_vmvnics:
                     if vmvnic['vm']['name'] == vm_name:
-                        vmvnic_id, vmvnic_name = vmvnic['id'], vmvnic['name']
+                        if 'left' in vmvnic['vn']['name']:
+                            vmvnic_id_l, vmvnic_name_l = vmvnic['id'], vmvnic['name']
+                        else:
+                            vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
                         # TODO get vmvnicVimObjectId
                         # TODO get vmvnic_ip
 
                 # Save VNF
                 self.logger.info('Saving VNF info into database.')
                 vnf_row = (vnf_id, service_id, vnf_type, '', 'YES')
-                self.dbman.save_vnf(vnf_row)
+                self.dbman.save_vnf(vnf_row, False)
 
                 # Save VM
                 self.logger.info('Saving VM info into database.')
                 vm_row = (vm_id, vnf_id, vm_name)
-                self.dbman.save_vm(vm_row)
+                self.dbman.save_vm(vm_row, False)
 
                 # Save VMVNIC
                 self.logger.info('Saving VMVNIC info into database.')
-                vmvnic_row = (vmvnic_id, vmvnic_name, 'vimobjectid', 'ip')
-                self.dbman.save_vmvnic(vmvnic_row)
+                vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, 'vimobjectid', 'ip')
+                vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, 'vimobjectid', 'ip')
+                self.dbman.save_vmvnic(vmvnic_row_l, False)
+                self.dbman.save_vmvnic(vmvnic_row_r, False)
 
             # Save VN_GROUP
-            vn_group_l = list()
-            vn_group_r = list()
             for vn in create_vns:
                 if 'left' in vn['name']:
-                    vn_group_l.append(vn['id'])
-                    vn_group_l.append(vn['name'])
-                    vn_group_l.append('vimobjectid')
+                    vn_id_l = vn['id']
+                    vn_name_l = vn['name']
+                    vn_vimobject_id_l = 'vimobjectid'
                 else:
-                    vn_group_r.append(vn['id'])
-                    vn_group_r.append(vn['name'])
-                    vn_group_r.append('vimobjectid')
+                    vn_id_r = vn['id']
+                    vn_name_r = vn['name']
+                    vn_vimobject_id_r = 'vimobjectid'
 
             self.logger.info('Saving VN_GROUP info into database.')
-            self.dbman.save_vn_group(tuple(vn_group_l + vn_group_r))
+            vn_group_row = (vnf_id, vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
+            self.dbman.save_vn_group(vn_group_row, False)
+
+            self.dbman.commit()
 
 
 
