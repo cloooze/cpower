@@ -39,18 +39,16 @@ class CreateOrder(EventManager):
 
         #TODO check if orderstatus is COM or ERR
 
-        #######################
-        #  CREATE SERVICE     #
-        #######################
+        #  CREATE SERVICE submitted by NSO
         create_service = get_order_items('createService', self.order_json, 1)
         create_vlink = get_order_items('createVLink', self.order_json, 1)
 
         if create_service is not None:
             customer_id = get_custom_order_param('Cust_Key', custom_order_params)
-            vnf_type = get_custom_order_param('vnf_type', custom_order_params)
             rt_left = get_custom_order_param('rt-left', custom_order_params)
             rt_right = get_custom_order_param('rt-right', custom_order_params)
             rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
+            vnf_list = get_custom_order_param('vnf_list', custom_order_params)
 
             operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
@@ -61,7 +59,7 @@ class CreateOrder(EventManager):
                 return 'FAILURE'
 
             # Checking if the needed custom order params are empty
-            empty_custom_order_param = get_empty_param(customer_id=customer_id, vnf_type=vnf_type, rt_left=rt_left,
+            empty_custom_order_param = get_empty_param(customer_id=customer_id, rt_left=rt_left,
                                                        rt_right=rt_right, rt_mgmt=rt_mgmt)
 
             if empty_custom_order_param is not None:
@@ -84,60 +82,48 @@ class CreateOrder(EventManager):
                 # Customer already in DB, it shouldn't be possible for createService operation
                 pass
 
-            ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, vnf_type, '', '', '')
+            ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, '', '', '')
             self.dbman.save_network_service(ntw_service_row)
             self.logger.info('Network Service \'%s\' successfully stored to DB.' % service_id)
 
             # Create order
 
+            csr1000_image_name = 'csr1000v-universalk9.16.04.01'
+
+            order_items = list()
+            for vnf_type in vnf_list:
+                order_items.append(get_create_vapp('1', customer_id + '_vapp_name', c.ecm_vdc_id, 'cpowerzone'))
+                order_items.append(get_create_vm('2', c.ecm_vdc_id, customer_id + '-vm_csr1000v', csr1000_image_name, 'm1.small', '1'))
+                order_items.append(get_create_vn('3', c.ecm_vdc_id, customer_id + '-left', 'Virtual Network left'))
+                order_items.append(get_create_vn('4', c.ecm_vdc_id, customer_id + '-right', 'Virtual Network right'))
+                order_items.append(get_create_vmvnic('5', '3', '2', 'desc'))
+                order_items.append(get_create_vmvnic('6', '4', '2', 'desc'))
 
             order = dict(
                 {
                     'tenantName': c.ecm_tenant_name,
-                    'customOrderParams': [],
-                    'orderItems': [
-                        get_create_vapp('', '', '', ''),
-                        get_create_vm('', '', '', '', '', ''),
-                        get_create_vn('', '', '', ''),
-                        get_create_vn('', '', '', '')
-                    ]
+                    'customOrderParams': [get_cop('next_action', 'associate')],
+                    'orderItems': order_items
                 }
             )
 
-
-
-            # TODO old implementation (do not delete yet)
-
-            '''
+            self.logger.info('Sending data %s' % order)
             try:
-                ovf_package_id = get_ovf_package_id(vnf_type, 'create')
-            except VnfTypeException:
-                error_message = "VNF Type '%s' is not supported." % vnf_type
-                self.logger.error(error_message)
-                workflow_error['error-code'] = REQUEST_ERROR
-                workflow_error['error-message'] = error_message
-                nso_util.notify_nso(workflow_error)
-                return 'FAILURE'
-
-            ovf_package_file = './json/deploy_ovf_package.json'
-            ovf_package_json = load_json_file(ovf_package_file)
-            ovf_package_json['tenantName'] = c.ecm_tenant_name
-            ovf_package_json['vdc']['id'] = c.ecm_vdc_id
-            ovf_package_json['ovfPackage']['namePrefix'] = customer_id + '-'
-
-            self.logger.info('Deploying OVF Package %s' % ovf_package_id)
-
-            try:
-                ecm_util.deploy_ovf_package(ovf_package_id, ovf_package_json)
+                ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
             except (ECMReqStatusError, ECMConnectionError) as e:
                 self.logger.exception(e)
                 operation_error['operation'] = 'createVnf'
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
-            '''
-        #######################
-        #  CREATE VLINK       #
-        #######################
+
+
+        # CREATE ORDER submitted by workflow
+        elif get_custom_order_param('next_action', custom_order_params) == 'associate':
+            # TODO associate networkservice to vnf
+            self.logger.info('not implemented yet')
+            pass
+
+        # CREATE VLINK submitted by workflow
         elif create_vlink is not None:
             service_id = create_vlink['service']['id']
             ex_input = create_vlink['customInputParams'][0]['value']

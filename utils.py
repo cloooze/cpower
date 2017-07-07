@@ -20,11 +20,11 @@ def get_env_var(var_name):
     return None
 
 
-def get_custom_order_param(s, json_data):
+def get_custom_order_param(tag, json_data):
     """Returns the customerOrderParam value that matches the given name s. None is returned if the is no matching
     customerOrderParam. """
     for custom_param in json_data:
-        if s == custom_param['tag']:
+        if tag == custom_param['tag']:
             return custom_param['value']
     return None
 
@@ -169,13 +169,13 @@ def get_create_vn(order_item_id, vdc_id, vn_name, vn_description):
     return j
 
 
-def get_crete_vmvnic_id(order_item_id, vn_id, order_item_ref_vm, vmvnic_description):
+def get_create_vmvnic(order_item_id, order_item_ref_vn, order_item_ref_vm, vmvnic_description, vn_id=None):
     j = dict(
         {
             'orderItemId': order_item_id,
-            "vn": {
-                "id": vn_id
-            },
+            "vn":
+                ({'orderItemRef': order_item_ref_vn} if vn_id is None else {'vn_id': vn_id})
+            ,
             "vm": {
                 "orderItemRef": order_item_ref_vm
             },
@@ -183,38 +183,3 @@ def get_crete_vmvnic_id(order_item_id, vn_id, order_item_ref_vm, vmvnic_descript
         }
     )
     return j
-
-
-def get_crete_vmvnic_orderref(order_item_id, order_item_ref_vn, order_item_ref_vm, vmvnic_description):
-    j = dict(
-        {
-            'orderItemId': order_item_id,
-            "vn": {
-                "orderItemRef": order_item_ref_vn
-            },
-            "vm": {
-                "orderItemRef": order_item_ref_vm
-            },
-            "description": vmvnic_description
-        }
-    )
-    return j
-
-#TODO to delete
-
-
-order = dict(
-    {
-        'tenantName': 'nsotenant',
-        'customOrderParams': [
-            get_cop('prova', 'prova'),
-            get_cop('prova2', 'prova2')
-        ],
-        'orderItems': [
-            get_create_vapp('1', 'prova_vapp', 'prova_vdc', 'prova_vim'),
-            get_crete_vn('2', 'prova_vdc', 'vn_name', 'vn_desc')
-        ]
-    }
-)
-
-print order

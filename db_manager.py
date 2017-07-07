@@ -79,7 +79,7 @@ class DBManager(object):
     # Network Service table
 
     def save_network_service(self, row, commit=True):
-        q = 'INSERT INTO network_service VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        q = 'INSERT INTO network_service VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
 
     def get_network_service(self, network_service_id):
