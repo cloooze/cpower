@@ -91,6 +91,7 @@ class CreateOrder(EventManager):
             # TODO to move in config
             csr1000_image_name = 'csr1000v-universalk9.16.04.01'
             fortinet_image_name = 'todo'
+            vmhd_name = '2vcpu_4096MBmem_40GBdisk'
 
             order_items = list()
 
@@ -99,11 +100,11 @@ class CreateOrder(EventManager):
 
             i = 1
             for vnf_type in vnf_list:
-                order_items.append(get_create_vapp(i, customer_id + '_vapp_name', c.ecm_vdc_id, 'Cpower', service_id))
-                order_items.append(get_create_vm(i+1, c.ecm_vdc_id, customer_id + '-vm_csr1000v', csr1000_image_name, 'm1.small', '1'))
-                order_items.append(get_create_vmvnic(i+2, 'vnic left name', '99', i+1, 'desc'))
-                order_items.append(get_create_vmvnic(i+3, 'vnic right name', '100', i+1, 'desc'))
-                order_items.append(get_create_vmvnic(i + 3, 'vnic right name', i + 1, 'desc', 'TODO_id_vn_mgmt'))
+                order_items.append(get_create_vapp(i, customer_id + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
+                order_items.append(get_create_vm(i+1, c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, '1'))
+                order_items.append(get_create_vmvnic(i+2, vnf_type + 'vnic left name', '99', i+1, 'desc'))
+                order_items.append(get_create_vmvnic(i+3, vnf_type + 'vnic right name', '100', i+1, 'desc'))
+                order_items.append(get_create_vmvnic(i + 3, vnf_type + 'vnic right name', i + 1, 'desc', 'TODO_id_vn_mgmt'))
                 i += 5
 
             order = dict(
