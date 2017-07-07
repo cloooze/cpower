@@ -100,7 +100,7 @@ class CreateOrder(Event):
 
             i = 1
             for vnf_type in vnf_list:
-                order_items.append(get_create_vapp(str(i), customer_id + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
+                order_items.append(get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
                 order_items.append(get_create_vm(str(i+1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
                 order_items.append(get_create_vmvnic(str(i+2), vnf_type + 'vnic left name', '99', str(i+1), 'desc'))
                 order_items.append(get_create_vmvnic(str(i+3), vnf_type + 'vnic right name', '100', str(i+1), 'desc'))
@@ -110,7 +110,7 @@ class CreateOrder(Event):
             order = dict(
                 {
                     "tenantName": c.ecm_tenant_name,
-                    "customOrderParams": [get_cop('next_action', 'associate')],
+                    "customOrderParams": [get_cop('service_id', service_id)],
                     "orderItems": order_items
                 }
             )
@@ -122,14 +122,6 @@ class CreateOrder(Event):
                 operation_error['operation'] = 'createVnf'
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
-
-
-        # CREATE ORDER submitted by workflow
-        elif get_custom_order_param('next_action', custom_order_params) == 'associate':
-            # TODO associate networkservice to vnf
-            self.logger.info('not implemented yet')
-            pass
-
         # CREATE VLINK submitted by workflow
         elif create_vlink is not None:
             service_id = create_vlink['service']['id']
@@ -156,5 +148,63 @@ class CreateOrder(Event):
                         (vlink_id, vlink_name, policy_rule, service_id))
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
         else:
-            self.logger.info('Received a [createOrder] request but neither [createService] nor [createVLink] order items in it.')
+            #self.logger.info('Received a [createOrder] request but neither [createService] nor [createVLink] order items in it.')
+            self.logger.info('Saving information about VNF into database.')
+            service_id = get_custom_order_param('service_id', self.order_json)
+            create_vnfs = get_order_items('createVapp', self.order_json)
+            create_vns = get_order_items('createVn', self.order_json)
+
+            for vnf in create_vnfs:
+                vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
+
+                create_vms = get_order_items('createVm', self.order_json)
+
+                for vm in create_vms:
+                    if vm['vapp']['name'] == vnf_name:
+                        vm_id, vm_name = vm['id'], vm['name']
+
+                create_vmvnics = get_order_items('createVmVnic', self.order_json)
+
+                for vmvnic in create_vmvnics:
+                    if vmvnic['vm']['name'] == vm_name:
+                        vmvnic_id, vmvnic_name = vmvnic['id'], vmvnic['name']
+                        # TODO get vmvnicVimObjectId
+                        # TODO get vmvnic_ip
+
+                # Save VNF
+                self.logger.info('Saving VNF info into database.')
+                vnf_row = (vnf_id, service_id, vnf_type, '', 'YES')
+                self.dbman.save_vnf(vnf_row)
+
+                # Save VM
+                self.logger.info('Saving VM info into database.')
+                vm_row = (vm_id, vnf_id, vm_name)
+                self.dbman.save_vm(vm_row)
+
+                # Save VMVNIC
+                self.logger.info('Saving VMVNIC info into database.')
+                vmvnic_row = (vmvnic_id, vmvnic_name, 'vimobjectid', 'ip')
+                self.dbman.save_vmvnic(vmvnic_row)
+
+            # Save VN_GROUP
+            vn_group_l = list()
+            vn_group_r = list()
+            for vn in create_vns:
+                if 'left' in vn['name']:
+                    vn_group_l.append(vn['id'])
+                    vn_group_l.append(vn['name'])
+                    vn_group_l.append('vimobjectid')
+                else:
+                    vn_group_r.append(vn['id'])
+                    vn_group_r.append(vn['name'])
+                    vn_group_r.append('vimobjectid')
+
+            self.logger.info('Saving VN_GROUP info into database.')
+            self.dbman.save_vn_group(tuple(vn_group_l + vn_group_r))
+
+
+
+
+
+
 

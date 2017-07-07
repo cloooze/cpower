@@ -114,7 +114,7 @@ class DBManager(object):
     # VM table
 
     def save_vm(self, row, commit=True):
-        q = 'INSERT INTO vm VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        q = 'INSERT INTO vm VALUES (?, ?, ?)'
         self.query(q, row, commit)
 
     def get_vm(self, vm_id):
@@ -124,6 +124,23 @@ class DBManager(object):
     def delete_vm(self, condition, commit=True):
         q = 'DELETE FROM vm WHERE vm_id=?'
         self.query(q, condition, commit)
+
+
+    #VMVNIC table
+
+
+    def save_vmvnic(self, row, commit=True):
+        q = 'INSERT INTO vmvnic VALUES (?, ?, ?, ?, ?)'
+        self.query(q, row, commit)
+
+    def get_vmvnic(self, vm_id):
+        q = 'SELECT * FROM vmvnic WHERE vmvnic_id=?'
+        self.query(q, (vm_id, ))
+
+    def delete_vmvnic(self, condition, commit=True):
+        q = 'DELETE FROM vmvnic WHERE vmvnic_id=?'
+        self.query(q, condition, commit)
+
 
 
     def save_order(self, row, commit=True):
