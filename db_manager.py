@@ -89,7 +89,7 @@ class DBManager(object):
     # VNF table
 
     def save_vnf(self, row, commit=True):
-        q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?)'
+        q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
 
     def get_vnf(self, vnf_id):
@@ -103,9 +103,9 @@ class DBManager(object):
     # VN GROUP table
 
     def save_vn_group(self, row, commit=True):
-        q = 'INSERT INTO vn_group("VNF_ID", "VN_LEFT_ID", "VN_LEFT_NAME", "VN_LEFT_VIMOBJECT_ID", "VN_RIGHT_ID",' \
-            ' "VN_RIGHT_NAME", "VN_RIGHT_VIMOBJECT_ID") VALUES (?, ?, ?, ?, ?, ?, ?)'
-        self.query(q, row, commit)
+        q = 'INSERT INTO vn_group("VN_LEFT_ID", "VN_LEFT_NAME", "VN_LEFT_VIMOBJECT_ID", "VN_RIGHT_ID",' \
+            ' "VN_RIGHT_NAME", "VN_RIGHT_VIMOBJECT_ID") VALUES (?, ?, ?, ?, ?, ?)'
+        return self.query(q, row, commit).rowcount
 
     def delete_vn_group(self, condition, commit=True):
         q = 'DELETE FROM vn_group WHERE vn_group_id=?'

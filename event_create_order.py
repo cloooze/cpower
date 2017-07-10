@@ -79,12 +79,17 @@ class CreateOrder(Event):
             try:
                 self.dbman.save_customer((customer_id, customer_id + '_name'))
             except sqlite3.IntegrityError:
-                # Customer already in DB, it shouldn't be possible for createService operation
+                # Customer already in DB, it shouldn't be possible for createService operation unless the request is re-submitted
+                #after a previous request that encountered an error
                 pass
 
             ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, '', '', '')
-            self.dbman.save_network_service(ntw_service_row)
-            self.logger.info('Network Service \'%s\' successfully stored to DB.' % service_id)
+            try:
+                self.dbman.save_network_service(ntw_service_row)
+                self.logger.info('Network Service \'%s\' successfully stored into database.' % service_id)
+            except sqlite3.IntegrityError:
+                # Same as for customer
+                pass
 
             # Create order
 
@@ -148,15 +153,42 @@ class CreateOrder(Event):
                         (vlink_id, vlink_name, policy_rule, service_id))
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
         else:
-            #self.logger.info('Received a [createOrder] request but neither [createService] nor [createVLink] order items in it.')
             customer_id = get_custom_order_param('customer_id', custom_order_params)
+            service_id = get_custom_order_param('service_id', custom_order_params)
+
+            if customer_id is None or service_id is None:
+                self.logger.info('Received an order not handled by the Custom Workflow. Skipping execution...')
+                return
 
             operation_error = {'operation': 'createVnf', 'result': 'failure', 'customer-key': customer_id}
             #workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
-            service_id = get_custom_order_param('service_id', custom_order_params)
+            if self.order_status == 'ERR':
+                self.logger.error(self.order_json['data']['order']['orderMsgs'])
+                nso_util.notify_nso(operation_error)
+                return 'FAILURE'
+
             create_vnfs = get_order_items('createVapp', self.order_json)
             create_vns = get_order_items('createVn', self.order_json)
+
+            # Save VN_GROUP first
+            for vn in create_vns:
+                if 'left' in vn['name']:
+                    vn_id_l = vn['id']
+                    vn_name_l = vn['name']
+                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
+                    resp = json.loads(r.text)
+                    vn_vimobject_id_l = resp['data']['vn']['vimObjectId']
+                else:
+                    vn_id_r = vn['id']
+                    vn_name_r = vn['name']
+                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
+                    resp = json.loads(r.text)
+                    vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
+
+            self.logger.info('Saving VN_GROUP info into database.')
+            vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
+            vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
 
             for vnf in create_vnfs:
                 vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
@@ -193,7 +225,7 @@ class CreateOrder(Event):
 
                 # Save VNF
                 self.logger.info('Saving VNF info into database.')
-                vnf_row = (vnf_id, service_id, vnf_type, '', 'YES')
+                vnf_row = (vnf_id, service_id, vn_group_id, vnf_type, '', 'YES')
                 self.dbman.save_vnf(vnf_row, False)
 
                 # Save VM
@@ -208,24 +240,7 @@ class CreateOrder(Event):
                 self.dbman.save_vmvnic(vmvnic_row_l, False)
                 self.dbman.save_vmvnic(vmvnic_row_r, False)
 
-            # Save VN_GROUP
-            for vn in create_vns:
-                if 'left' in vn['name']:
-                    vn_id_l = vn['id']
-                    vn_name_l = vn['name']
-                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
-                    resp = json.loads(r.text)
-                    vn_vimobject_id_l = resp['data']['vn']['vimObjectId']
-                else:
-                    vn_id_r = vn['id']
-                    vn_name_r = vn['name']
-                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
-                    resp = json.loads(r.text)
-                    vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
 
-            self.logger.info('Saving VN_GROUP info into database.')
-            vn_group_row = (vnf_id, vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
-            self.dbman.save_vn_group(vn_group_row, False)
 
             self.dbman.commit()
 
