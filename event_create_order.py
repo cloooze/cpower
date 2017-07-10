@@ -102,15 +102,15 @@ class CreateOrder(Event):
             for vnf_type in vnf_list:
                 order_items.append(get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
                 order_items.append(get_create_vm(str(i+1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
-                order_items.append(get_create_vmvnic(str(i+2), vnf_type + 'vnic left name', '99', str(i+1), 'desc'))
-                order_items.append(get_create_vmvnic(str(i+3), vnf_type + 'vnic right name', '100', str(i+1), 'desc'))
+                order_items.append(get_create_vmvnic(str(i+2), vnf_type + '-left', '99', str(i+1), 'desc'))
+                order_items.append(get_create_vmvnic(str(i+3), vnf_type + '-right', '100', str(i+1), 'desc'))
                 #order_items.append(get_create_vmvnic(str(i+4), vnf_type + 'vnic mgmt name', '', str(i+1), 'desc', 'TODO_id_vn_mgmt'))
                 i += 4 #change to 5
 
             order = dict(
                 {
                     "tenantName": c.ecm_tenant_name,
-                    "customOrderParams": [get_cop('service_id', service_id)],
+                    "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id)],
                     "orderItems": order_items
                 }
             )
@@ -149,7 +149,11 @@ class CreateOrder(Event):
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
         else:
             #self.logger.info('Received a [createOrder] request but neither [createService] nor [createVLink] order items in it.')
-            self.logger.info('Saving information about VNF into database.')
+            customer_id = get_custom_order_param('customer_id', custom_order_params)
+
+            operation_error = {'operation': 'createVnf', 'result': 'failure', 'customer-key': customer_id}
+            #workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
+
             service_id = get_custom_order_param('service_id', custom_order_params)
             create_vnfs = get_order_items('createVapp', self.order_json)
             create_vns = get_order_items('createVn', self.order_json)
@@ -165,14 +169,27 @@ class CreateOrder(Event):
 
                 create_vmvnics = get_order_items('createVmVnic', self.order_json)
 
-                for vmvnic in create_vmvnics:
-                    if vmvnic['vm']['name'] == vm_name:
-                        if 'left' in vmvnic['vn']['name']:
-                            vmvnic_id_l, vmvnic_name_l = vmvnic['id'], vmvnic['name']
-                        else:
-                            vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
-                        # TODO get vmvnicVimObjectId
-                        # TODO get vmvnic_ip
+                try:
+                    for vmvnic in create_vmvnics:
+                        if vmvnic['vm']['name'] == vm_name:
+                            if 'left' in vmvnic['vn']['name']:
+                                vmvnic_id_l, vmvnic_name_l = vmvnic['id'], vmvnic['name']
+                                r = ecm_util.invoke_ecm_api(vmvnic_id_l, c.ecm_service_api_vmvnics, 'GET')
+                                resp = json.loads(r.text)
+                                vmvnic_ip_l = resp['data']['vmVnic']['internalIpAddress'][0]
+                                vmvnic_vimobjectid_l = resp['data']['vmVnic']['vimObjectId']
+
+                            else:
+                                vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
+                                r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
+                                resp = json.loads(r.text)
+                                vmvnic_ip_r = resp['data']['vmVnic']['internalIpAddress'][0]
+                                vmvnic_vimobjectid_r = resp['data']['vmVnic']['vimObjectId']
+                except (ECMReqStatusError, ECMConnectionError) as e:
+                    self.logger.exception(e)
+                    operation_error['operation'] = 'createVnf'
+                    nso_util.notify_nso(operation_error)
+                    return 'FAILURE'
 
                 # Save VNF
                 self.logger.info('Saving VNF info into database.')
@@ -186,8 +203,8 @@ class CreateOrder(Event):
 
                 # Save VMVNIC
                 self.logger.info('Saving VMVNIC info into database.')
-                vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, 'vimobjectid', 'ip')
-                vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, 'vimobjectid', 'ip')
+                vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, vmvnic_vimobjectid_l, vmvnic_ip_l)
+                vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, vmvnic_vimobjectid_r, vmvnic_ip_r)
                 self.dbman.save_vmvnic(vmvnic_row_l, False)
                 self.dbman.save_vmvnic(vmvnic_row_r, False)
 
@@ -196,21 +213,19 @@ class CreateOrder(Event):
                 if 'left' in vn['name']:
                     vn_id_l = vn['id']
                     vn_name_l = vn['name']
-                    vn_vimobject_id_l = 'vimobjectid'
+                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
+                    resp = json.loads(r.text)
+                    vn_vimobject_id_l = resp['data']['vn']['vimObjectId']
                 else:
                     vn_id_r = vn['id']
                     vn_name_r = vn['name']
-                    vn_vimobject_id_r = 'vimobjectid'
+                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
+                    resp = json.loads(r.text)
+                    vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
 
             self.logger.info('Saving VN_GROUP info into database.')
             vn_group_row = (vnf_id, vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
             self.dbman.save_vn_group(vn_group_row, False)
 
             self.dbman.commit()
-
-
-
-
-
-
 
