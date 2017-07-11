@@ -105,7 +105,7 @@ class DBManager(object):
     def save_vn_group(self, row, commit=True):
         q = 'INSERT INTO vn_group("VN_LEFT_ID", "VN_LEFT_NAME", "VN_LEFT_VIMOBJECT_ID", "VN_RIGHT_ID",' \
             ' "VN_RIGHT_NAME", "VN_RIGHT_VIMOBJECT_ID") VALUES (?, ?, ?, ?, ?, ?)'
-        return self.query(q, row, commit).rowcount
+        return self.query(q, row, commit).lastrowid
 
     def delete_vn_group(self, condition, commit=True):
         q = 'DELETE FROM vn_group WHERE vn_group_id=?'

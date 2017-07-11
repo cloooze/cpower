@@ -79,8 +79,8 @@ class CreateOrder(Event):
             try:
                 self.dbman.save_customer((customer_id, customer_id + '_name'))
             except sqlite3.IntegrityError:
-                # Customer already in DB, it shouldn't be possible for createService operation unless the request is re-submitted
-                #after a previous request that encountered an error
+                # Customer already in DB, it shouldn't be possible for createService operation unless the request is
+                # re-submitted after a previous request that encountered an error
                 pass
 
             ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, '', '', '')
@@ -109,13 +109,13 @@ class CreateOrder(Event):
                 order_items.append(get_create_vm(str(i+1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
                 order_items.append(get_create_vmvnic(str(i+2), vnf_type + '-left', '99', str(i+1), 'desc'))
                 order_items.append(get_create_vmvnic(str(i+3), vnf_type + '-right', '100', str(i+1), 'desc'))
-                #order_items.append(get_create_vmvnic(str(i+4), vnf_type + 'vnic mgmt name', '', str(i+1), 'desc', 'TODO_id_vn_mgmt'))
-                i += 4 #change to 5
+                order_items.append(get_create_vmvnic(str(i+4), vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
+                i += 5
 
             order = dict(
                 {
                     "tenantName": c.ecm_tenant_name,
-                    "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id)],
+                    "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id), get_cop('rt-left', rt_left), get_cop('rt-right', rt_right)],
                     "orderItems": order_items
                 }
             )
@@ -168,10 +168,8 @@ class CreateOrder(Event):
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
 
-            create_vnfs = get_order_items('createVapp', self.order_json)
+            # Saving VN_GROUP first
             create_vns = get_order_items('createVn', self.order_json)
-
-            # Save VN_GROUP first
             for vn in create_vns:
                 if 'left' in vn['name']:
                     vn_id_l = vn['id']
@@ -190,7 +188,11 @@ class CreateOrder(Event):
             vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
             vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
 
+            # Saving the rest
+            create_vnfs = get_order_items('createVapp', self.order_json)
+            position = 0
             for vnf in create_vnfs:
+                position += 1
                 vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
 
                 create_vms = get_order_items('createVm', self.order_json)
@@ -201,31 +203,25 @@ class CreateOrder(Event):
 
                 create_vmvnics = get_order_items('createVmVnic', self.order_json)
 
-                try:
-                    for vmvnic in create_vmvnics:
-                        if vmvnic['vm']['name'] == vm_name:
-                            if 'left' in vmvnic['vn']['name']:
-                                vmvnic_id_l, vmvnic_name_l = vmvnic['id'], vmvnic['name']
-                                r = ecm_util.invoke_ecm_api(vmvnic_id_l, c.ecm_service_api_vmvnics, 'GET')
-                                resp = json.loads(r.text)
-                                vmvnic_ip_l = resp['data']['vmVnic']['internalIpAddress'][0]
-                                vmvnic_vimobjectid_l = resp['data']['vmVnic']['vimObjectId']
+                for vmvnic in create_vmvnics:
+                    if vmvnic['vm']['name'] == vm_name:
+                        if 'left' in vmvnic['vn']['name']:
+                            vmvnic_id_l, vmvnic_name_l = vmvnic['id'], vmvnic['name']
+                            r = ecm_util.invoke_ecm_api(vmvnic_id_l, c.ecm_service_api_vmvnics, 'GET')
+                            resp = json.loads(r.text)
+                            vmvnic_ip_l = resp['data']['vmVnic']['internalIpAddress'][0]
+                            vmvnic_vimobjectid_l = resp['data']['vmVnic']['vimObjectId']
 
-                            else:
-                                vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
-                                r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
-                                resp = json.loads(r.text)
-                                vmvnic_ip_r = resp['data']['vmVnic']['internalIpAddress'][0]
-                                vmvnic_vimobjectid_r = resp['data']['vmVnic']['vimObjectId']
-                except (ECMReqStatusError, ECMConnectionError) as e:
-                    self.logger.exception(e)
-                    operation_error['operation'] = 'createVnf'
-                    nso_util.notify_nso(operation_error)
-                    return 'FAILURE'
+                        else:
+                            vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
+                            r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
+                            resp = json.loads(r.text)
+                            vmvnic_ip_r = resp['data']['vmVnic']['internalIpAddress'][0]
+                            vmvnic_vimobjectid_r = resp['data']['vmVnic']['vimObjectId']
 
                 # Save VNF
                 self.logger.info('Saving VNF info into database.')
-                vnf_row = (vnf_id, service_id, vn_group_id, vnf_type, '', 'YES')
+                vnf_row = (vnf_id, service_id, vn_group_id, vnf_type, str(position), 'YES')
                 self.dbman.save_vnf(vnf_row, False)
 
                 # Save VM
@@ -235,12 +231,52 @@ class CreateOrder(Event):
 
                 # Save VMVNIC
                 self.logger.info('Saving VMVNIC info into database.')
-                vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, vmvnic_vimobjectid_l, vmvnic_ip_l)
-                vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, vmvnic_vimobjectid_r, vmvnic_ip_r)
+                vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, vmvnic_ip_l, vmvnic_vimobjectid_l)
+                vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, vmvnic_ip_r, vmvnic_vimobjectid_r)
                 self.dbman.save_vmvnic(vmvnic_row_l, False)
                 self.dbman.save_vmvnic(vmvnic_row_r, False)
 
-
-
             self.dbman.commit()
+
+            # Creating VLINK
+            # Getting create_vlink JSON file
+
+            self.logger.info('Creating VLINK object...')
+
+            vlink_json = load_json_file('json/create_vlink.json')
+            vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
+            vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
+
+            ex_input = load_json_file('json/extensions_input_create.json')
+
+            ex_input['extensions-input']['service-instance']['si_name'] = customer_id + '-' + vnf_type
+            ex_input['extensions-input']['service-instance']['left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_l
+            ex_input['extensions-input']['service-instance']['right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_r
+            ex_input['extensions-input']['service-instance']['port-tuple']['name'] = 'porttuple-' + customer_id + '-' + vnf_id
+            ex_input['extensions-input']['service-instance']['port-tuple']['si_name'] = customer_id + '-' + vnf_type
+            ex_input['extensions-input']['service-instance']['update-vmvnic']['left'] = vmvnic_name_l
+            ex_input['extensions-input']['service-instance']['update-vmvnic']['right'] = vmvnic_name_r
+            ex_input['extensions-input']['service-instance']['update-vmvnic']['port-tuple'] = 'porttuple-' + customer_id + '-' + vnf_id
+            ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
+            ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
+            ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
+
+            ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
+            ex_input['extensions-input']['update-vn-RT']['right_RT'] = get_custom_order_param('rt-right', self.order_json)
+            ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
+            ex_input['extensions-input']['update-vn-RT']['left_RT'] = get_custom_order_param('rt-left', self.order_json)
+            ex_input['extensions-input']['update-vn-RT']['network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
+
+            l = list()
+            l.append(customer_id + '-' + vnf_type)
+            ex_input['extensions-input']['network-policy']['policy-rule'] = l
+
+            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+
+            try:
+                ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+            except ECMConnectionError as e:
+                self.logger.exception(e)
+                # TODO notify NSO
+                return 'FAILURE'
 

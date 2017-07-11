@@ -11,6 +11,10 @@ retry_n = 3
 delete_sleep_time_sec = 20
 update_sleep_time_sec = 20
 
+mgmt_vn_id = '1234todo'
+mgmt_vn_name = ''
+mgmt_vn_ip = ''
+
 ecm_server_address = "https://pmk03ecm.rmedlab.eld.it.eu.ericsson.se"
 ecm_service_timeout = 10
 ecm_service_api_orders = "/ecm_service/orders/"
