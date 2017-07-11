@@ -8,14 +8,12 @@ from event import Event
 from utils import *
 from ecm_exception import *
 
-
 INTERNAL_ERROR = '100'
 REQUEST_ERROR = '200'
 NETWORK_ERROR = '300'
 
 
 class CreateOrder(Event):
-
     def __init__(self, order_status, order_id, source_api, order_json):
         super(CreateOrder, self).__init__()
 
@@ -31,13 +29,14 @@ class CreateOrder(Event):
         # Getting customer order params from getOrder response
         custom_order_params = dict()
         try:
-            custom_order_params = self.order_json['data']['order']['customOrderParams']  # check if it generates exception
+            custom_order_params = self.order_json['data']['order'][
+                'customOrderParams']  # check if it generates exception
         except KeyError:
             # The flow ends up here when has been sent a creteVlink as createOrder from the customworkflow since
             # the order doesn't have any customOrderParams
             pass
 
-        #TODO check if orderstatus is COM or ERR
+        # TODO check if orderstatus is COM or ERR
 
         #  CREATE SERVICE submitted by NSO
         create_service = get_order_items('createService', self.order_json, 1)
@@ -70,7 +69,7 @@ class CreateOrder(Event):
                 nso_util.notify_nso(workflow_error)
                 return 'FAILURE'
 
-            service_id, service_name  = create_service['id'], create_service['name']
+            service_id, service_name = create_service['id'], create_service['name']
 
             # We got everything we need to proceed:
             # Saving customer and network service info to DB. A check is not needed as NSO should send a
@@ -105,17 +104,23 @@ class CreateOrder(Event):
 
             i = 1
             for vnf_type in vnf_list:
-                order_items.append(get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
-                order_items.append(get_create_vm(str(i+1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
-                order_items.append(get_create_vmvnic(str(i+2), vnf_type + '-left', '99', str(i+1), 'desc'))
-                order_items.append(get_create_vmvnic(str(i+3), vnf_type + '-right', '100', str(i+1), 'desc'))
-                order_items.append(get_create_vmvnic(str(i+4), vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
-                i += 5
+                order_items.append(
+                    get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
+                order_items.append(
+                    get_create_vm(str(i + 1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name,
+                                  str(i)))
+                order_items.append(
+                    get_create_vmvnic(str(i + 2), customer_id + '-' + vnf_type + '-left', '99', str(i + 1), 'desc'))
+                order_items.append(
+                    get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '100', str(i + 1), 'desc'))
+                # order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
+                i += 4
 
             order = dict(
                 {
                     "tenantName": c.ecm_tenant_name,
-                    "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id), get_cop('rt-left', rt_left), get_cop('rt-right', rt_right)],
+                    "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id),
+                                          get_cop('rt-left', rt_left), get_cop('rt-right', rt_right)],
                     "orderItems": order_items
                 }
             )
@@ -150,7 +155,7 @@ class CreateOrder(Event):
 
             # Updating table NETWORK_SERVICE with the just created vlink_id and vlink_name
             self.dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?,ntw_policy=?  WHERE ntw_service_id=?',
-                        (vlink_id, vlink_name, policy_rule, service_id))
+                             (vlink_id, vlink_name, policy_rule, service_id))
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
         else:
             customer_id = get_custom_order_param('customer_id', custom_order_params)
@@ -161,7 +166,7 @@ class CreateOrder(Event):
                 return
 
             operation_error = {'operation': 'createVnf', 'result': 'failure', 'customer-key': customer_id}
-            #workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
+            # workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
             if self.order_status == 'ERR':
                 self.logger.error(self.order_json['data']['order']['orderMsgs'])
@@ -189,11 +194,14 @@ class CreateOrder(Event):
             vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
 
             # Saving the rest
+            vnf_type_vmvnic_mapping = dict()
             create_vnfs = get_order_items('createVapp', self.order_json)
+            vnf_type_list = list()
             position = 0
             for vnf in create_vnfs:
                 position += 1
                 vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
+                vnf_type_list.append(vnf_type)
 
                 create_vms = get_order_items('createVm', self.order_json)
 
@@ -249,26 +257,69 @@ class CreateOrder(Event):
 
             ex_input = load_json_file('json/extensions_input_create.json')
 
+            # In caso of multiple VNF, duplicate the entire service-instance block
+            policy_rule_list = list()
+            for vnf_type_el in vnf_type_list:
+                cur = self.dbman.query('SELECT vmvnic.vm_vnic_name '
+                                       'FROM vmvnic, vm, network_service, vnf '
+                                       'WHERE network_service.customer_id = ? '
+                                       'AND vnf.ntw_service_id = network_service.ntw_service_id '
+                                       'AND vnf.vnf_type = ? '
+                                       'AND vnf.vnf_id = vm.vnf_id '
+                                       'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
+
+                rows = cur.fetchall()
+
+                service_instance = {
+                    'operation': 'create',
+                    'si_name': customer_id + '-' + vnf_type,
+                    'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
+                    'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
+                    'service_template': 'cpower-template',
+                    'port-tuple': {
+                        'name': 'porttuple-' + customer_id + '-' + vnf_type,
+                        'si-name': customer_id + '-' + vnf_type
+                    },
+                    'update-vmvnic': {
+                        'left': (rows[0]['vm_vnic_name'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                        'right': (rows[0]['vm_vnic_name'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                        'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
+                    }
+                }
+
+                ex_input['extensions-input']['service-instance'].append(service_instance)
+
+                policy_rule_list.append(customer_id + '-' + vnf_type)
+
+            '''
             ex_input['extensions-input']['service-instance']['si_name'] = customer_id + '-' + vnf_type
-            ex_input['extensions-input']['service-instance']['left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_l
-            ex_input['extensions-input']['service-instance']['right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_r
-            ex_input['extensions-input']['service-instance']['port-tuple']['name'] = 'porttuple-' + customer_id + '-' + vnf_id
+            ex_input['extensions-input']['service-instance'][
+                'left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_l
+            ex_input['extensions-input']['service-instance'][
+                'right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_r
+            ex_input['extensions-input']['service-instance']['port-tuple'][
+                'name'] = 'porttuple-' + customer_id + '-' + vnf_type
             ex_input['extensions-input']['service-instance']['port-tuple']['si_name'] = customer_id + '-' + vnf_type
             ex_input['extensions-input']['service-instance']['update-vmvnic']['left'] = vmvnic_name_l
             ex_input['extensions-input']['service-instance']['update-vmvnic']['right'] = vmvnic_name_r
-            ex_input['extensions-input']['service-instance']['update-vmvnic']['port-tuple'] = 'porttuple-' + customer_id + '-' + vnf_id
+            ex_input['extensions-input']['service-instance']['update-vmvnic'][
+                'port-tuple'] = 'porttuple-' + customer_id + '-' + vnf_type
+            '''
+
             ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
             ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
             ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
 
             ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
-            ex_input['extensions-input']['update-vn-RT']['right_RT'] = get_custom_order_param('rt-right', self.order_json)
+            ex_input['extensions-input']['update-vn-RT']['right_RT'] = get_custom_order_param('rt-right',
+                                                                                              custom_order_params)
             ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
-            ex_input['extensions-input']['update-vn-RT']['left_RT'] = get_custom_order_param('rt-left', self.order_json)
-            ex_input['extensions-input']['update-vn-RT']['network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
+            ex_input['extensions-input']['update-vn-RT']['left_RT'] = get_custom_order_param('rt-left',
+                                                                                             custom_order_params)
+            ex_input['extensions-input']['update-vn-RT'][
+                'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
 
-            l = list()
-            l.append(customer_id + '-' + vnf_type)
+
             ex_input['extensions-input']['network-policy']['policy-rule'] = l
 
             vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
@@ -279,4 +330,3 @@ class CreateOrder(Event):
                 self.logger.exception(e)
                 # TODO notify NSO
                 return 'FAILURE'
-
