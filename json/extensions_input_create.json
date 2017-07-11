@@ -9,11 +9,11 @@
 			"src_address": ""
 		},
         "update-vn-RT": {
-            "right_VN": "1d1196ba8-7628-4816-bddc-f492d4341bd",
-            "right_RT": "target:100:88",
-            "left_VN": "d1196ba8-7628-4816-bddc-f492d4341bda",
-            "left_RT": "target:100:99",
-            "network_policy": "default-domain:cpower:Tony_policy_name"
+            "right_VN": "",
+            "right_RT": "",
+            "left_VN": "",
+            "left_RT": "",
+            "network_policy": ""
         }
 	}
 }

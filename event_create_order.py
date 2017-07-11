@@ -36,7 +36,8 @@ class CreateOrder(Event):
             # the order doesn't have any customOrderParams
             pass
 
-        # TODO check if orderstatus is COM or ERR
+        if self.order_status == 'ERR':
+            self.logger.error(self.order_json['data']['order']['orderMsgs'])
 
         #  CREATE SERVICE submitted by NSO
         create_service = get_order_items('createService', self.order_json, 1)
@@ -53,7 +54,6 @@ class CreateOrder(Event):
             workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
             if self.order_status == 'ERR':
-                self.logger.error(self.order_json['data']['order']['orderMsgs'])
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
 
@@ -104,6 +104,7 @@ class CreateOrder(Event):
 
             i = 1
             for vnf_type in vnf_list:
+                vnf_type = vnf_type.strip()
                 order_items.append(
                     get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
                 order_items.append(
@@ -169,7 +170,6 @@ class CreateOrder(Event):
             # workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
 
             if self.order_status == 'ERR':
-                self.logger.error(self.order_json['data']['order']['orderMsgs'])
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
 
@@ -185,7 +185,7 @@ class CreateOrder(Event):
                 else:
                     vn_id_r = vn['id']
                     vn_name_r = vn['name']
-                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
+                    r = ecm_util.invoke_ecm_api(vn_id_r, c.ecm_service_api_vns, 'GET')
                     resp = json.loads(r.text)
                     vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
 
@@ -245,10 +245,9 @@ class CreateOrder(Event):
                 self.dbman.save_vmvnic(vmvnic_row_r, False)
 
             self.dbman.commit()
+            self.logger.info('All data succesfully save into database.')
 
             # Creating VLINK
-            # Getting create_vlink JSON file
-
             self.logger.info('Creating VLINK object...')
 
             vlink_json = load_json_file('json/create_vlink.json')
@@ -289,22 +288,7 @@ class CreateOrder(Event):
 
                 ex_input['extensions-input']['service-instance'].append(service_instance)
 
-                policy_rule_list.append(customer_id + '-' + vnf_type)
-
-            '''
-            ex_input['extensions-input']['service-instance']['si_name'] = customer_id + '-' + vnf_type
-            ex_input['extensions-input']['service-instance'][
-                'left_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_l
-            ex_input['extensions-input']['service-instance'][
-                'right_virtual_network_fqdn'] = 'default-domain:cpower:' + vn_name_r
-            ex_input['extensions-input']['service-instance']['port-tuple'][
-                'name'] = 'porttuple-' + customer_id + '-' + vnf_type
-            ex_input['extensions-input']['service-instance']['port-tuple']['si_name'] = customer_id + '-' + vnf_type
-            ex_input['extensions-input']['service-instance']['update-vmvnic']['left'] = vmvnic_name_l
-            ex_input['extensions-input']['service-instance']['update-vmvnic']['right'] = vmvnic_name_r
-            ex_input['extensions-input']['service-instance']['update-vmvnic'][
-                'port-tuple'] = 'porttuple-' + customer_id + '-' + vnf_type
-            '''
+                policy_rule_list.append(customer_id + '-' + vnf_type_el)
 
             ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
             ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
@@ -320,7 +304,7 @@ class CreateOrder(Event):
                 'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
 
 
-            ex_input['extensions-input']['network-policy']['policy-rule'] = l
+            ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
 
             vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
 
