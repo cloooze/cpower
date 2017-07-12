@@ -7,6 +7,7 @@ import config as c
 from event import Event
 from utils import *
 from ecm_exception import *
+import time
 
 INTERNAL_ERROR = '100'
 REQUEST_ERROR = '200'
@@ -29,8 +30,7 @@ class CreateOrder(Event):
         # Getting customer order params from getOrder response
         custom_order_params = dict()
         try:
-            custom_order_params = self.order_json['data']['order'][
-                'customOrderParams']  # check if it generates exception
+            custom_order_params = self.order_json['data']['order']['customOrderParams']  # check if it throws exception
         except KeyError:
             # The flow ends up here when has been sent a creteVlink as createOrder from the customworkflow since
             # the order doesn't have any customOrderParams
@@ -136,11 +136,9 @@ class CreateOrder(Event):
                 return 'FAILURE'
         elif create_vlink is not None:
             if self.order_status == 'ERR':
-                self.logger.info('Rollbacking VNFs creation...')
+                self.logger.info('Could not create VLink. Rollbacking VNFs creation...')
 
                 service_id = create_vlink['service']['id']
-
-                # Preparing the rollback
 
                 # Getting the ntw_policy_rule list
                 self.dbman.get_network_service(service_id)
@@ -150,63 +148,63 @@ class CreateOrder(Event):
                     original_vnf_type_list = l.split(',')
 
                 # Getting current VNFs
-                current_vnf_type_list = self.dbman.query('SELECT vnf_type,vnf_id FROM vnf WHERE ntw_service_id = ?', (service_id,)).fetchall()
+                current_vnf_type_list = self.dbman.query('SELECT vnf_type,vnf_id '
+                                                         'FROM vnf '
+                                                         'WHERE ntw_service_id = ?', (service_id,)).fetchall()
 
-
-                # Determining VNFs to delete
+                # Determining VNFs to delete/to keep
                 vnf_to_delete = list()
+                vnf_to_keep = list()
 
                 for current_vnf_type in current_vnf_type_list:
                     if current_vnf_type['vnf_type'] in original_vnf_type_list:
-                        pass
+                        vnf_to_keep.append(current_vnf_type['vnf_id'])
                     else:
                         vnf_to_delete.append(current_vnf_type['vnf_id'])
 
-                self.logger.info('VNFs to delete list: %s' % vnf_to_delete)
+                self.logger.info('Deleting the VNFs: %s' % vnf_to_delete)
+                self.logger.info('Dissociating the VNFs from the Service %s first.' % service_id)
 
-                self.logger.info('(mock) Detaching VNFs from NETWORK SERVICE...')
-                self.logger.info('(mock) Deleting VNF...')
-                self.logger.info('(mock) Deleting VN...')
-
-                # Detaching VNF to delete from Network Service
+                # Dissociating VNFs to delete from Network Service
                 modify_service_json = load_json_file('./json/modify_service.json')
 
-                vnf_id_list = list()
-                for vnf_id in vnf_to_delete:
+                for vnf_id in vnf_to_keep:
                     modify_service_json['vapps'].append({'id': vnf_id})
+
                 modify_service_json['customInputParams'].append(get_cop('next_action', 'skip'))
 
                 ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
 
-                # Deleting VNF
+                time.sleep(5)
+
+                # Deleting VNFs
                 for vnf_id in vnf_to_delete:
                     ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
 
+                # Retrieving customer_id for NSO notification
+                self.dbman.get_network_service(service_id)
+                customer_id = self.dbman.fetchone()['customer_id']
+
+                # TODO Notify NSO
+                # operation_error['operation'] = 'createVnf'
+                # nso_util.notify_nso(operation_error)
+                # return 'FAILURE'
             else:
-                # Processing post-createVlink (sub by CW)
+                # Processing post-createVLink (sub by CW)
                 service_id = create_vlink['service']['id']
-                ex_input = create_vlink['customInputParams'][0]['value']
-                ex_input_s = json.loads(ex_input)
-                policy_rule = ex_input_s['extensions-input']['service-instance']['si_name']
-
-                self.dbman.query('SELECT * FROM network_service WHERE ntw_service_id=?', (service_id,))
-                row = self.dbman.fetchone()
-                customer_id = row['customer_id']
-
-                operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
-                workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
-
-                if self.order_status == 'ERR':
-                    self.logger.error(self.order_json['data']['order']['orderMsgs'])
-                    nso_util.notify_nso(operation_error)
-                    return 'FAILURE'
-
+                ex_input = json.loads(create_vlink['customInputParams'][0]['value'])
+                policy_rule = ex_input['extensions-input']['network-policy']['policy-rule']
                 vlink_id, vlink_name = create_vlink['id'], create_vlink['name']
 
-                # Updating table NETWORK_SERVICE with the just created vlink_id and vlink_name
-                self.dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?,ntw_policy=?  WHERE ntw_service_id=?',
-                                 (vlink_id, vlink_name, policy_rule, service_id))
+                # Updating Network Service table
+                self.dbman.query('UPDATE network_service '
+                                 'SET vlink_id = ?, vlink_name = ?, ntw_policy = ?  '
+                                 'WHERE ntw_service_id = ?', (vlink_id, vlink_name, policy_rule, service_id))
+
                 self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
+                self.logger.info('Policy Rule %s succesfully created.' % policy_rule)
+
+                self.logger.info('MOCK - Notifyin NSO SUCCESS')
         else:
             # Processing post-createOrder (sub by CW)
             customer_id = get_custom_order_param('customer_id', custom_order_params)
@@ -243,7 +241,7 @@ class CreateOrder(Event):
             vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
             vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
 
-            # Saving the rest
+            # Saving the remainder
             vnf_type_vmvnic_mapping = dict()
             create_vnfs = get_order_items('createVapp', self.order_json)
             vnf_type_list = list()

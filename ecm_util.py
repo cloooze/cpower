@@ -50,7 +50,6 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
                                      timeout=c.ecm_service_timeout,
                                      headers=get_ecm_api_auth(),
                                      verify=False)
-                logger.debug("Sending data: %s" % json_data)
             else:
                 return None
             resp.raise_for_status()
