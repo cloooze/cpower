@@ -1,12 +1,17 @@
 {
 	"extensions-input": {
-		"service-instance": {
+        "network-policy": {
+          "operation": "update",
+          "policy-rule": [],
+          "policy-name": ""
+        },
+		"service-instance": [{
 			"operation": "delete",
 			"si_name": "",
 			"port-tuple": {
 				"name": "",
 				"si_name": ""
 			}
-		}
+		}]
 	}
 }

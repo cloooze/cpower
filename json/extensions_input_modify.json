@@ -1,21 +1,6 @@
 {
 	"extensions-input": {
-		"service-instance": {
-			"operation": "update",
-			"si_name": "",
-			"left_virtual_network_fqdn": "",
-			"right_virtual_network_fqdn": "",
-			"service_template": "",
-			"port-tuple": {
-				"name": "",
-				"si_name": ""
-			},
-			"update-vmvnic": {
-				"right": "",
-				"left": "",
-				"port_tuple": ""
-			}
-		},
+		"service-instance": [],
 		"network-policy": {
 				"operation": "update",
 				"policy_name": "",

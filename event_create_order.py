@@ -44,6 +44,7 @@ class CreateOrder(Event):
         create_vlink = get_order_items('createVLink', self.order_json, 1)
 
         if create_service is not None:
+            # Processing post-createService (sub by NSO)
             customer_id = get_custom_order_param('Cust_Key', custom_order_params)
             rt_left = get_custom_order_param('rt-left', custom_order_params)
             rt_right = get_custom_order_param('rt-right', custom_order_params)
@@ -115,7 +116,7 @@ class CreateOrder(Event):
                 order_items.append(
                     get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '100', str(i + 1), 'desc'))
                 # order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
-                i += 4
+                i += 4 # TODO change to 5 uncomment
 
             order = dict(
                 {
@@ -133,32 +134,64 @@ class CreateOrder(Event):
                 operation_error['operation'] = 'createVnf'
                 nso_util.notify_nso(operation_error)
                 return 'FAILURE'
-        # CREATE VLINK submitted by workflow
         elif create_vlink is not None:
-            service_id = create_vlink['service']['id']
-            ex_input = create_vlink['customInputParams'][0]['value']
-            ex_input_s = json.loads(ex_input)
-            policy_rule = ex_input_s['extensions-input']['service-instance']['si_name']
-
-            self.dbman.query('SELECT * FROM network_service WHERE ntw_service_id=?', (service_id,))
-            row = self.dbman.fetchone()
-            customer_id = row['customer_id']
-
-            operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
-            workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
-
             if self.order_status == 'ERR':
-                self.logger.error(self.order_json['data']['order']['orderMsgs'])
-                nso_util.notify_nso(operation_error)
-                return 'FAILURE'
+                self.logger.info('Rollbacking VNFs creation...')
 
-            vlink_id, vlink_name = create_vlink['id'], create_vlink['name']
+                service_id = create_vlink['service']['id']
 
-            # Updating table NETWORK_SERVICE with the just created vlink_id and vlink_name
-            self.dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?,ntw_policy=?  WHERE ntw_service_id=?',
-                             (vlink_id, vlink_name, policy_rule, service_id))
-            self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
+                # Preparing the rollback
+
+                # Getting the ntw_policy_rule list
+                self.dbman.get_network_service(service_id)
+                l = self.dbman.fetchone()['ntw_policy_rule']
+                original_vnf_type_list = list()
+                if len(l) > 0:
+                    original_vnf_type_list = l.split(',')
+
+                # Getting current VNFs
+                current_vnf_type_list = self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', service_id).fetchall()
+
+                # Determining VNFs to delete
+                vnf_to_delete = list()
+
+                for current_vnf_type in current_vnf_type_list:
+                    if current_vnf_type['vnf_type'] in original_vnf_type_list:
+                        pass
+                    else:
+                        vnf_to_delete.append(current_vnf_type['vnf_type'])
+                        self.logger.info('VNFs to delete list: %s' % vnf_to_delete)
+
+                self.logger.info('(mock) Detaching VNFs from NETWORK SERVICE...')
+                self.logger.info('(mock) Deleting VNF...')
+                self.logger.info('(mock) Deleting VN...')
+            else:
+                # Processing post-createVlink (sub by CW)
+                service_id = create_vlink['service']['id']
+                ex_input = create_vlink['customInputParams'][0]['value']
+                ex_input_s = json.loads(ex_input)
+                policy_rule = ex_input_s['extensions-input']['service-instance']['si_name']
+
+                self.dbman.query('SELECT * FROM network_service WHERE ntw_service_id=?', (service_id,))
+                row = self.dbman.fetchone()
+                customer_id = row['customer_id']
+
+                operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
+                workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
+
+                if self.order_status == 'ERR':
+                    self.logger.error(self.order_json['data']['order']['orderMsgs'])
+                    nso_util.notify_nso(operation_error)
+                    return 'FAILURE'
+
+                vlink_id, vlink_name = create_vlink['id'], create_vlink['name']
+
+                # Updating table NETWORK_SERVICE with the just created vlink_id and vlink_name
+                self.dbman.query('UPDATE network_service SET vlink_id=?,vlink_name=?,ntw_policy=?  WHERE ntw_service_id=?',
+                                 (vlink_id, vlink_name, policy_rule, service_id))
+                self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
         else:
+            # Processing post-createOrder (sub by CW)
             customer_id = get_custom_order_param('customer_id', custom_order_params)
             service_id = get_custom_order_param('service_id', custom_order_params)
 
@@ -256,9 +289,10 @@ class CreateOrder(Event):
 
             ex_input = load_json_file('json/extensions_input_create.json')
 
-            # In caso of multiple VNF, duplicate the entire service-instance block
+            # In case of multiple VNF, duplicate the entire service-instance tag
             policy_rule_list = list()
             for vnf_type_el in vnf_type_list:
+                # not needed, vmvnic_name is always customer_id-vnf_type-left/right
                 cur = self.dbman.query('SELECT vmvnic.vm_vnic_name '
                                        'FROM vmvnic, vm, network_service, vnf '
                                        'WHERE network_service.customer_id = ? '
@@ -302,7 +336,6 @@ class CreateOrder(Event):
                                                                                              custom_order_params)
             ex_input['extensions-input']['update-vn-RT'][
                 'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
-
 
             ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
 
