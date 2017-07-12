@@ -144,13 +144,14 @@ class CreateOrder(Event):
 
                 # Getting the ntw_policy_rule list
                 self.dbman.get_network_service(service_id)
-                l = self.dbman.fetchone()['ntw_policy_rule']
+                l = self.dbman.fetchone()['ntw_policy']
                 original_vnf_type_list = list()
                 if len(l) > 0:
                     original_vnf_type_list = l.split(',')
 
                 # Getting current VNFs
-                current_vnf_type_list = self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', service_id).fetchall()
+                current_vnf_type_list = self.dbman.query('SELECT vnf_type,vnf_id FROM vnf WHERE ntw_service_id = ?', (service_id,)).fetchall()
+
 
                 # Determining VNFs to delete
                 vnf_to_delete = list()
@@ -159,12 +160,28 @@ class CreateOrder(Event):
                     if current_vnf_type['vnf_type'] in original_vnf_type_list:
                         pass
                     else:
-                        vnf_to_delete.append(current_vnf_type['vnf_type'])
-                        self.logger.info('VNFs to delete list: %s' % vnf_to_delete)
+                        vnf_to_delete.append(current_vnf_type['vnf_id'])
+
+                self.logger.info('VNFs to delete list: %s' % vnf_to_delete)
 
                 self.logger.info('(mock) Detaching VNFs from NETWORK SERVICE...')
                 self.logger.info('(mock) Deleting VNF...')
                 self.logger.info('(mock) Deleting VN...')
+
+                # Detaching VNF to delete from Network Service
+                modify_service_json = load_json_file('./json/modify_service.json')
+
+                vnf_id_list = list()
+                for vnf_id in vnf_to_delete:
+                    modify_service_json['vapps'].append({'id': vnf_id})
+                modify_service_json['customInputParams'].append(get_cop('next_action', 'skip'))
+
+                ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+
+                # Deleting VNF
+                for vnf_id in vnf_to_delete:
+                    ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
+
             else:
                 # Processing post-createVlink (sub by CW)
                 service_id = create_vlink['service']['id']

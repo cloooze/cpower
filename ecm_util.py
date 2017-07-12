@@ -45,6 +45,12 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
                                      headers=get_ecm_api_auth(),
                                      verify=False)
                 logger.debug("Sending data: %s" % json_data)
+            elif http_verb == 'DELETE':
+                resp = requests.delete('%s%s%s' % (c.ecm_server_address, api, param),
+                                     timeout=c.ecm_service_timeout,
+                                     headers=get_ecm_api_auth(),
+                                     verify=False)
+                logger.debug("Sending data: %s" % json_data)
             else:
                 return None
             resp.raise_for_status()
