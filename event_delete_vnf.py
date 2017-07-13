@@ -29,11 +29,35 @@ class DeleteVnf(Event):
             nso_util.notify_nso(workflow_error)
             return 'FAILURE'
 
-        delete_vnf = self.get_order_items('deleteVnf', self.order_json)[0]
+        delete_vnf = self.get_order_items('deleteVnf', self.order_json, 1)
 
         vnf_id = delete_vnf['id']
 
+        self.dbman.query('SELECT ns.ntw_policy,vnf.vnf_type, vnf.ntw_service_id '
+                         'FROM network_service ns, vnf '
+                         'WHERE vnf.vnf_id = ? '
+                         'AND vnf.ntw_service_id = ns.ntw_service_id', (vnf_id,))
+
+        ntw_policy_list = self.dbman.fetchone()['ntw_policy'].split(',')
+        vnf_type = self.dbman.fetchone()['vnf_type']
+        service_id = self.dbman.fetchone()['ntw_service_id']
+
+        for ntw_policy in ntw_policy_list:
+            if vnf_type in ntw_policy:
+                ntw_policy_list.pop(ntw_policy)
+
+        new_ntw_policy_list = ','.join(ntw_policy_list)
+
+        self.logger.info('Updating NTW_POLICY column for Network Service %s. Data: %s ' % (service_id, new_ntw_policy_list))
+        self.dbman.query('UPDATE network_service'
+                         'SET ntw_policy = ?'
+                         'WHERE ntw_service_id = ?', (new_ntw_policy_list, service_id))
+
+        self.logger.info('Deleting VNF %s from database.' % vnf_id)
         self.dbman.delete_vnf(vnf_id)
 
-        # TODO modify VLINK???
+        self.dbman.commit()
+
         # TODO notify NSO success with operation DELETE_VNF
+
+        # TODO delete this VNF from the column ntw_policy in network service table
