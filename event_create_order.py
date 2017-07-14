@@ -63,7 +63,7 @@ class CreateOrder(Event):
                                                        rt_right=rt_right, rt_mgmt=rt_mgmt)
 
             if empty_custom_order_param is not None:
-                error_message = "Custom order parameter [%s] is needed but not found or empty in the request." % empty_custom_order_param
+                error_message = "Custom order parameter [%s] mandatory but not found or empty in the request." % empty_custom_order_param
                 self.logger.error(error_message)
                 workflow_error['error-code'] = REQUEST_ERROR
                 workflow_error['error-message'] = error_message
@@ -202,7 +202,7 @@ class CreateOrder(Event):
                                  'WHERE ntw_service_id = ?', (vlink_id, vlink_name, policy_rule, service_id))
 
                 self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
-                self.logger.info('Policy Rule %s succesfully created.' % policy_rule)
+                self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
 
                 self.logger.info('MOCK - Notifyin NSO SUCCESS')
         else:
@@ -223,26 +223,26 @@ class CreateOrder(Event):
 
             # Saving VN_GROUP first
             create_vns = get_order_items('createVn', self.order_json)
-            for vn in create_vns:
-                if 'left' in vn['name']:
-                    vn_id_l = vn['id']
-                    vn_name_l = vn['name']
-                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
-                    resp = json.loads(r.text)
-                    vn_vimobject_id_l = resp['data']['vn']['vimObjectId']
-                else:
-                    vn_id_r = vn['id']
-                    vn_name_r = vn['name']
-                    r = ecm_util.invoke_ecm_api(vn_id_r, c.ecm_service_api_vns, 'GET')
-                    resp = json.loads(r.text)
-                    vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
+            if create_vns is not None:
+                for vn in create_vns:
+                    if 'left' in vn['name']:
+                        vn_id_l = vn['id']
+                        vn_name_l = vn['name']
+                        r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
+                        resp = json.loads(r.text)
+                        vn_vimobject_id_l = resp['data']['vn']['vimObjectId']
+                    else:
+                        vn_id_r = vn['id']
+                        vn_name_r = vn['name']
+                        r = ecm_util.invoke_ecm_api(vn_id_r, c.ecm_service_api_vns, 'GET')
+                        resp = json.loads(r.text)
+                        vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
 
-            self.logger.info('Saving VN_GROUP info into database.')
-            vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
-            vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
+                    self.logger.info('Saving VN_GROUP info into database.')
+                    vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
+                    vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
 
             # Saving the remainder
-            vnf_type_vmvnic_mapping = dict()
             create_vnfs = get_order_items('createVapp', self.order_json)
             vnf_type_list = list()
             position = 0
@@ -296,6 +296,7 @@ class CreateOrder(Event):
             self.logger.info('All data succesfully save into database.')
 
             # Creating VLINK
+            # TODO adapt this in order to handle the MODIFY VLINK as well
             self.logger.info('Creating VLINK object...')
 
             vlink_json = load_json_file('json/create_vlink.json')

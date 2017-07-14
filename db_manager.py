@@ -17,7 +17,7 @@ class DBManager(object):
         self.conn.row_factory = sqlite3.Row
 
         # Disabled ONLY for testing purposes
-        #self.conn.execute("PRAGMA foreign_keys = ON")
+        self.conn.execute("PRAGMA foreign_keys = ON")
 
         self.cur = self.conn.cursor()
 
@@ -98,7 +98,7 @@ class DBManager(object):
 
     def delete_vnf(self, condition, commit=True):
         q = 'DELETE FROM vnf WHERE vnf_id=?'
-        self.query(q, condition, commit)
+        self.query(q, (condition, ), commit)
 
     # VN GROUP table
 

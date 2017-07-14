@@ -2,11 +2,13 @@
 	"extensions-input": {
 		"service-instance": [],
 		"network-policy": {
-				"operation": "update",
-				"policy_name": "",
-				"policy-rule": [],
-				"dst_address": "",
-				"src_address": ""
-			}
+			"operation": "update",
+			"policy_name": "",
+			"policy-rule": []
+		},
+		"update-vn-RT": {
+			"right_VN": "",
+			"left_VN": ""
+		}
 	}
 }
