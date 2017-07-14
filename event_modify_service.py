@@ -51,14 +51,15 @@ class ModifyService(Event):
             return 'FAILURE'
 
         # Getting target vnf_list
-        target_vnf_type_list = get_custom_input_param('Cust_Key', modify_service_cip).split(',')
+        target_vnf_type_list = get_custom_input_param('vnf_list', modify_service_cip).split(',')
 
         # Getting current vnf_list from database
         self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', (service_id, ))
         res = self.dbman.fetchall()
 
+        curr_vnf_type_list = list()
         for vnf_type in res:
-            curr_vnf_type_list = vnf_type['vnf_type']
+            curr_vnf_type_list.append(vnf_type['vnf_type'])
 
         # Determining vnf to delete and to add
         add_vnf = list()
@@ -66,11 +67,11 @@ class ModifyService(Event):
 
         for vnf in target_vnf_type_list:
             if vnf not in curr_vnf_type_list:
-                add_vnf = vnf.strip()
+                add_vnf.append(vnf.strip())
 
         for vnf in curr_vnf_type_list:
             if vnf not in target_vnf_type_list:
-                delete_vnf = vnf.stip()
+                delete_vnf.append(vnf.strip())
 
         self.logger.info('VNF to add to the existing Network Service: %s' % add_vnf)
         self.logger.info('VNF to delete to the existing Network Service: %s' % delete_vnf)

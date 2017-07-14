@@ -199,7 +199,7 @@ class CreateOrder(Event):
                 # Updating Network Service table
                 self.dbman.query('UPDATE network_service '
                                  'SET vlink_id = ?, vlink_name = ?, ntw_policy = ?  '
-                                 'WHERE ntw_service_id = ?', (vlink_id, vlink_name, policy_rule, service_id))
+                                 'WHERE ntw_service_id = ?', (vlink_id, vlink_name, ','.join(policy_rule), service_id))
 
                 self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
                 self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
@@ -223,6 +223,7 @@ class CreateOrder(Event):
 
             # Saving VN_GROUP first
             create_vns = get_order_items('createVn', self.order_json)
+            # If create_vns is None it means that the order was related to the creation of an addition VNF (ADD)
             if create_vns is not None:
                 for vn in create_vns:
                     if 'left' in vn['name']:
@@ -238,9 +239,18 @@ class CreateOrder(Event):
                         resp = json.loads(r.text)
                         vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
 
-                    self.logger.info('Saving VN_GROUP info into database.')
-                    vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
-                    vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
+                self.logger.info('Saving VN_GROUP info into database.')
+                vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
+                vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
+
+            else:
+                ADD_VNF_SCENARIO = True
+                res = self.dbman.query('SELECT vn_group_id, vn_left_name, vn_right_name '
+                                               'FROM vnf '
+                                               'WHERE ntw_service_id = ?', (service_id,)).fetchone()
+                vn_group_id = res['vn_group_id']
+                vn_name_l = res['vn_left_name']
+                vn_name_r = res['vn_right_name']
 
             # Saving the remainder
             create_vnfs = get_order_items('createVapp', self.order_json)
@@ -295,71 +305,79 @@ class CreateOrder(Event):
             self.dbman.commit()
             self.logger.info('All data succesfully save into database.')
 
+            # TODO in case of ADD new VNF, send a modifyService to associate all the VNFs to the NetworkService
+
             # Creating VLINK
             # TODO adapt this in order to handle the MODIFY VLINK as well
-            self.logger.info('Creating VLINK object...')
+            if ADD_VNF_SCENARIO is True:
+                self.logger.info('Modifying VLINK object...')
+                self.logger.info('MOCK not implmenented yet...')
+                # TODO load mofify_vlink JSON and put in ex input modify
+            else:
+                self.logger.info('Creating VLINK object...')
 
-            vlink_json = load_json_file('json/create_vlink.json')
-            vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
-            vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
+                vlink_json = load_json_file('json/create_vlink.json')
+                vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
+                vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
 
-            ex_input = load_json_file('json/extensions_input_create.json')
+                ex_input = load_json_file('json/extensions_input_create.json')
 
-            # In case of multiple VNF, duplicate the entire service-instance tag
-            policy_rule_list = list()
-            for vnf_type_el in vnf_type_list:
-                # not needed, vmvnic_name is always customer_id-vnf_type-left/right
-                cur = self.dbman.query('SELECT vmvnic.vm_vnic_name '
-                                       'FROM vmvnic, vm, network_service, vnf '
-                                       'WHERE network_service.customer_id = ? '
-                                       'AND vnf.ntw_service_id = network_service.ntw_service_id '
-                                       'AND vnf.vnf_type = ? '
-                                       'AND vnf.vnf_id = vm.vnf_id '
-                                       'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
+                # In case of multiple VNF, duplicate the entire service-instance tag
+                policy_rule_list = list()
 
-                rows = cur.fetchall()
+                for vnf_type_el in vnf_type_list:
+                    # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
+                    cur = self.dbman.query('SELECT vmvnic.vm_vnic_name '
+                                           'FROM vmvnic, vm, network_service, vnf '
+                                           'WHERE network_service.customer_id = ? '
+                                           'AND vnf.ntw_service_id = network_service.ntw_service_id '
+                                           'AND vnf.vnf_type = ? '
+                                           'AND vnf.vnf_id = vm.vnf_id '
+                                           'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
 
-                service_instance = {
-                    'operation': 'create',
-                    'si_name': customer_id + '-' + vnf_type,
-                    'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
-                    'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
-                    'service_template': 'cpower-template',
-                    'port-tuple': {
-                        'name': 'porttuple-' + customer_id + '-' + vnf_type,
-                        'si-name': customer_id + '-' + vnf_type
-                    },
-                    'update-vmvnic': {
-                        'left': (rows[0]['vm_vnic_name'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
-                        'right': (rows[0]['vm_vnic_name'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
-                        'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
+                    rows = cur.fetchall()
+
+                    service_instance = {
+                        'operation': 'create',
+                        'si_name': customer_id + '-' + vnf_type,
+                        'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
+                        'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
+                        'service_template': 'cpower-template',
+                        'port-tuple': {
+                            'name': 'porttuple-' + customer_id + '-' + vnf_type,
+                            'si-name': customer_id + '-' + vnf_type
+                        },
+                        'update-vmvnic': {
+                            'left': (rows[0]['vm_vnic_name'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                            'right': (rows[0]['vm_vnic_name'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                            'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
+                        }
                     }
-                }
 
-                ex_input['extensions-input']['service-instance'].append(service_instance)
+                    ex_input['extensions-input']['service-instance'].append(service_instance)
 
-                policy_rule_list.append(customer_id + '-' + vnf_type_el)
+                    policy_rule_list.append(customer_id + '-' + vnf_type_el)
 
-            ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
-            ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
-            ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
+                ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
+                ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
+                ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
 
-            ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
-            ex_input['extensions-input']['update-vn-RT']['right_RT'] = get_custom_order_param('rt-right',
-                                                                                              custom_order_params)
-            ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
-            ex_input['extensions-input']['update-vn-RT']['left_RT'] = get_custom_order_param('rt-left',
-                                                                                             custom_order_params)
-            ex_input['extensions-input']['update-vn-RT'][
-                'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
+                ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
+                ex_input['extensions-input']['update-vn-RT']['right_RT'] = get_custom_order_param('rt-right',
+                                                                                                  custom_order_params)
+                ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
+                ex_input['extensions-input']['update-vn-RT']['left_RT'] = get_custom_order_param('rt-left',
+                                                                                                 custom_order_params)
+                ex_input['extensions-input']['update-vn-RT'][
+                    'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
 
-            ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
+                ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
 
-            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+                vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
 
-            try:
-                ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
-            except ECMConnectionError as e:
-                self.logger.exception(e)
-                # TODO notify NSO
-                return 'FAILURE'
+                try:
+                    ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+                except ECMConnectionError as e:
+                    self.logger.exception(e)
+                    # TODO notify NSO
+                    return 'FAILURE'

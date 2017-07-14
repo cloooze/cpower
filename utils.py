@@ -179,7 +179,7 @@ def get_create_vmvnic(order_item_id, vmvnic_name, order_item_ref_vn, order_item_
             "createVmVnic": {
                 "name": vmvnic_name,
                 "vn":
-                    ({"orderItemRef": order_item_ref_vn} if vn_id is None else {"vn_id": vn_id})
+                    ({"orderItemRef": order_item_ref_vn} if vn_id is None else {"id": vn_id})
                 ,
                 "vm": {
                     "orderItemRef": order_item_ref_vm
