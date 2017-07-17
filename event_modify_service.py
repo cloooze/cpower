@@ -105,7 +105,7 @@ class ModifyService(Event):
             {
                 "tenantName": c.ecm_tenant_name,
                 "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id),
-                                      get_cop('next_action','delete_vnf'), get_cop('vnf_list', delete_vnf)],
+                                      get_cop('next_action','delete_vnf'), get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf))],
                 "orderItems": order_items
             }
         )

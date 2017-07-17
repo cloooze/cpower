@@ -206,20 +206,20 @@ class CreateOrder(Event):
 
                 self.logger.info('MOCK - Notifyin NSO SUCCESS')
         elif get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':
-            if self.order_status == 'COM':
-                vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
-                customer_id = get_custom_order_param('customer_id', custom_order_params)
-                service_id = get_custom_order_param('service_id', custom_order_params)
+            vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
+            customer_id = get_custom_order_param('customer_id', custom_order_params)
+            service_id = get_custom_order_param('service_id', custom_order_params)
 
-                placeholders = ','.join('?' for vnf in vnf_type_list_to_delete)
-                res = self.dbman.query('SELECT vnf_id '
-                                       'FROM vnf '
-                                       'WHERE ntw_service_id = ? '
-                                       'AND vnf_type IN (%s)' % placeholders).fetchall()
+            placeholders = ','.join('?' for vnf in vnf_type_list_to_delete)
 
-                self.logger.info('Deleting VNFs: %s ' % vnf_type_list_to_delete)
-                for row in res:
-                    ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
+            res = self.dbman.query('SELECT vnf_id '
+                                   'FROM vnf '
+                                   'WHERE ntw_service_id = ? '
+                                   'AND vnf_type IN (%s)' % placeholders, tuple([service_id]) + tuple(vnf_type_list_to_delete.split(','))).fetchall()
+
+            self.logger.info('Deleting VNFs: %s' % vnf_type_list_to_delete)
+            for row in res:
+                ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
 
         else:
             # Processing post-createOrder (sub by CW)
