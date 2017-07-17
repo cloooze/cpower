@@ -40,7 +40,7 @@ class DeleteVnf(Event):
                          'AND vnf.ntw_service_id = ns.ntw_service_id', (vnf_id,))
 
         res = self.dbman.fetchone()
-        ntw_policy_list =    res['ntw_policy'].split(',')
+        ntw_policy_list = res['ntw_policy'].split(',')
         vnf_type = res['vnf_type']
         service_id = res['ntw_service_id']
 

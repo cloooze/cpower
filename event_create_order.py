@@ -39,7 +39,7 @@ class CreateOrder(Event):
         if self.order_status == 'ERR':
             self.logger.error(self.order_json['data']['order']['orderMsgs'])
 
-        #  CREATE SERVICE submitted by NSO
+        # CREATE SERVICE submitted by NSO
         create_service = get_order_items('createService', self.order_json, 1)
         create_vlink = get_order_items('createVLink', self.order_json, 1)
 
@@ -116,7 +116,7 @@ class CreateOrder(Event):
                 order_items.append(
                     get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '100', str(i + 1), 'desc'))
                 # order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
-                i += 4 # TODO change to 5 uncomment
+                i += 4  # TODO change to 5 uncomment
 
             order = dict(
                 {
@@ -205,6 +205,22 @@ class CreateOrder(Event):
                 self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
 
                 self.logger.info('MOCK - Notifyin NSO SUCCESS')
+        elif get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':
+            if self.order_status == 'COM':
+                vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
+                customer_id = get_custom_order_param('customer_id', custom_order_params)
+                service_id = get_custom_order_param('service_id', custom_order_params)
+
+                placeholders = ','.join('?' for vnf in vnf_type_list_to_delete)
+                res = self.dbman.query('SELECT vnf_id '
+                                       'FROM vnf '
+                                       'WHERE ntw_service_id = ? '
+                                       'AND vnf_type IN (%s)' % placeholders).fetchall()
+
+                self.logger.info('Deleting VNFs: %s ' % vnf_type_list_to_delete)
+                for row in res:
+                    ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
+
         else:
             # Processing post-createOrder (sub by CW)
             customer_id = get_custom_order_param('customer_id', custom_order_params)
@@ -225,6 +241,7 @@ class CreateOrder(Event):
             create_vns = get_order_items('createVn', self.order_json)
             # If create_vns is None it means that the order was related to the creation of an addition VNF (ADD)
             if create_vns is not None:
+                ADD_VNF_SCENARIO = False
                 for vn in create_vns:
                     if 'left' in vn['name']:
                         vn_id_l = vn['id']
@@ -245,9 +262,11 @@ class CreateOrder(Event):
 
             else:
                 ADD_VNF_SCENARIO = True
-                res = self.dbman.query('SELECT vn_group_id, vn_left_name, vn_right_name '
-                                               'FROM vnf '
-                                               'WHERE ntw_service_id = ?', (service_id,)).fetchone()
+                res = self.dbman.query('SELECT vnf.vn_group_id, vn_group.vn_left_name, vn_group.vn_right_name '
+                                       'FROM vnf, vn_group '
+                                       'WHERE vnf.ntw_service_id = ? '
+                                       'AND vnf.vn_group_id = vn_group.vn_group_id',
+                                       (service_id,)).fetchone()
                 vn_group_id = res['vn_group_id']
                 vn_name_l = res['vn_left_name']
                 vn_name_r = res['vn_right_name']
@@ -339,17 +358,19 @@ class CreateOrder(Event):
 
                     service_instance = {
                         'operation': 'create',
-                        'si_name': customer_id + '-' + vnf_type,
+                        'si_name': customer_id + '-' + vnf_type_el,
                         'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
                         'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
                         'service_template': 'cpower-template',
                         'port-tuple': {
-                            'name': 'porttuple-' + customer_id + '-' + vnf_type,
-                            'si-name': customer_id + '-' + vnf_type
+                            'name': 'porttuple-' + customer_id + '-' + vnf_type_el,
+                            'si-name': customer_id + '-' + vnf_type_el
                         },
                         'update-vmvnic': {
-                            'left': (rows[0]['vm_vnic_name'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
-                            'right': (rows[0]['vm_vnic_name'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                            'left': (
+                            rows[0]['vm_vnic_name'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                            'right': (
+                            rows[0]['vm_vnic_name'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
                             'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
                         }
                     }

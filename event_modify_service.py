@@ -84,10 +84,10 @@ class ModifyService(Event):
         vmhd_name = '2vcpu_4096MBmem_40GBdisk'
 
         # Getting existing VN_LFT_ID and VN_RIGHT_ID for this network service
-        self.dbman.query('SELECT VN_LEFT_ID, VN_RIGHT_ID '
-                         'FROM VNF, VN_GROUP '
-                         'WHERE VNF.NTW_SERVICE_ID = ? '
-                         'AND VNF.VN_GROUP_ID = VN_GROUP.VN_GROUP_ID', (service_id, ))
+        self.dbman.query('SELECT vn_left_id, vn_right_id '
+                         'FROM vnf, vn_group '
+                         'WHERE vnf.ntw_service_id = ? '
+                         'AND vnf.vn_group_id = vn_group.vn_group_id', (service_id, ))
         res = self.dbman.fetchone()
         vn_left_id = res['vn_left_id']
         vn_right_id = res['vn_right_id']
@@ -104,7 +104,8 @@ class ModifyService(Event):
         order = dict(
             {
                 "tenantName": c.ecm_tenant_name,
-                "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id)],
+                "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id),
+                                      get_cop('next_action','delete_vnf'), get_cop('vnf_list', delete_vnf)],
                 "orderItems": order_items
             }
         )
@@ -117,6 +118,7 @@ class ModifyService(Event):
             nso_util.notify_nso(operation_error)
             return 'FAILURE'
 
+        # TODO send modifyService with ex-input
 
         '''
         self.logger.info('Modify VLINK object...')
