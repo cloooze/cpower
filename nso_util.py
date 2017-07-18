@@ -103,13 +103,15 @@ def notify_nso(params):
                                   auth=(c.nso_auth_username, c.nso_auth_password),
                                   headers=h, data=json.dumps(json_data, sort_keys=True))
             resp.raise_for_status()
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.HTTPError as r:
+            logger.error(r)
             raise NSOConnectionError
         except requests.exceptions.Timeout:
             logger.warning("NSO connection timeout, trying again...")
             count += 1
-        except requests.exceptions.RequestException:
-            logger.error("Something went very wrong during NSO API invocation...")
+        except requests.exceptions.RequestException as r:
+            # logger.error("Something went very wrong during NSO API invocation...")
+            logger.error(r)
             raise NSOConnectionError
         else:
             return resp

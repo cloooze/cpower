@@ -39,6 +39,11 @@ class DeleteService(Event):
 
         self.dbman.query('SELECT customer_id FROM network_service ns WHERE ns.ntw_service_id=?', (service_id,))
         row = self.dbman.fetchone()
+
+        if not row:
+            self.logger.info('No VNs associated to Network Service [%s].' % service_id)
+            return
+
         customer_id = row['customer_id']
 
         operation_error = {'operation': 'deleteService', 'result': 'failure', 'customer-key': customer_id}

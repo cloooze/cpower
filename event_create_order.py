@@ -45,10 +45,10 @@ class CreateOrder(Event):
 
         if create_service is not None:
             # Processing post-createService (sub by NSO)
-            customer_id = get_custom_order_param('Cust_Key', custom_order_params)
-            rt_left = get_custom_order_param('rt-left', custom_order_params)
-            rt_right = get_custom_order_param('rt-right', custom_order_params)
-            rt_mgmt = get_custom_order_param('rt-mgmt', custom_order_params)
+            customer_id = get_custom_order_param('customer_key', custom_order_params)
+            rt_left = get_custom_order_param('rt_left', custom_order_params)
+            rt_right = get_custom_order_param('rt_right', custom_order_params)
+            rt_mgmt = get_custom_order_param('rt_mgmt', custom_order_params)
             vnf_list = get_custom_order_param('vnf_list', custom_order_params).split(',')
 
             operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
@@ -59,8 +59,7 @@ class CreateOrder(Event):
                 return 'FAILURE'
 
             # Checking if the needed custom order params are empty
-            empty_custom_order_param = get_empty_param(customer_id=customer_id, rt_left=rt_left,
-                                                       rt_right=rt_right, rt_mgmt=rt_mgmt)
+            empty_custom_order_param = get_empty_param(customer_id=customer_id, rt_left=rt_left, rt_right=rt_right)
 
             if empty_custom_order_param is not None:
                 error_message = "Custom order parameter [%s] mandatory but not found or empty in the request." % empty_custom_order_param
@@ -115,8 +114,8 @@ class CreateOrder(Event):
                     get_create_vmvnic(str(i + 2), customer_id + '-' + vnf_type + '-left', '99', str(i + 1), 'desc'))
                 order_items.append(
                     get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '100', str(i + 1), 'desc'))
-                # order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
-                i += 4  # TODO change to 5 uncomment
+                order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
+                i += 5
 
             order = dict(
                 {
@@ -297,12 +296,18 @@ class CreateOrder(Event):
                             vmvnic_ip_l = resp['data']['vmVnic']['internalIpAddress'][0]
                             vmvnic_vimobjectid_l = resp['data']['vmVnic']['vimObjectId']
 
-                        else:
+                        elif 'right' in vmvnic['vn']['name']:
                             vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
                             r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
                             resp = json.loads(r.text)
                             vmvnic_ip_r = resp['data']['vmVnic']['internalIpAddress'][0]
                             vmvnic_vimobjectid_r = resp['data']['vmVnic']['vimObjectId']
+                        else:
+                            vmvnic_id_mgmt, vmvnic_name_mgmt = vmvnic['id'], vmvnic['name']
+                            r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
+                            resp = json.loads(r.text)
+                            vmvnic_ip_mgmt = resp['data']['vmVnic']['internalIpAddress'][0]
+                            vmvnic_vimobjectid_mgmt = resp['data']['vmVnic']['vimObjectId']
 
                 # Save VNF
                 self.logger.info('Saving VNF info into database.')
@@ -318,8 +323,10 @@ class CreateOrder(Event):
                 self.logger.info('Saving VMVNIC info into database.')
                 vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, vmvnic_ip_l, vmvnic_vimobjectid_l)
                 vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, vmvnic_ip_r, vmvnic_vimobjectid_r)
+                vmvnic_row_mgmt = (vmvnic_id_mgmt, vm_id, vmvnic_name_mgmt, vmvnic_ip_mgmt, vmvnic_vimobjectid_mgmt)
                 self.dbman.save_vmvnic(vmvnic_row_l, False)
                 self.dbman.save_vmvnic(vmvnic_row_r, False)
+                self.dbman.save_vmvnic(vmvnic_row_mgmt, False)
 
             self.dbman.commit()
             self.logger.info('All data succesfully save into database.')
@@ -341,7 +348,7 @@ class CreateOrder(Event):
 
                 ex_input = load_json_file('json/extensions_input_create.json')
 
-                # In case of multiple VNF, duplicate the entire service-instance tag
+                # In case of multiple VNF, duplicating the entire service-instance tag
                 policy_rule_list = list()
 
                 for vnf_type_el in vnf_type_list:

@@ -1,5 +1,5 @@
-nso_server_address = "http://10.42.241.121:8080"
-nso_service_uri = "/api/running/cpower/vnfconfig"
+nso_server_address = "http://10.42.241.121:80"
+nso_service_uri = "/api/running/cpower/ecm-response/"
 nso_service_timeout = 10
 nso_auth_username = "admin"
 nso_auth_password = "admin"
@@ -11,9 +11,8 @@ retry_n = 3
 delete_sleep_time_sec = 20
 update_sleep_time_sec = 20
 
-mgmt_vn_id = '1234todo'
-mgmt_vn_name = ''
-mgmt_vn_ip = ''
+mgmt_vn_id = 'abf38e36-c884-463d-b7de-ec7f6f67be12'
+
 
 ecm_server_address = "https://pmk03ecm.rmedlab.eld.it.eu.ericsson.se"
 ecm_service_timeout = 10

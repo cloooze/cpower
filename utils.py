@@ -165,7 +165,7 @@ def get_create_vn(order_item_id, vdc_id, vn_name, vn_description):
                 "name": vn_name,
                 "description": vn_description,
                 "ipVersion": 'IPv4',
-                "cidrSize": '29',
+                "cidrSize": '28',
                 "enabled": 'true',
                 "dhcpEnabled": 'true',
                 "category": 'L3'
