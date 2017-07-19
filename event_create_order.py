@@ -194,14 +194,10 @@ class CreateOrder(Event):
                 self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
                 self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
 
-                self.dbman.query('SELECT customer_id'
-                                 'FROM network_service'
-                                 'WHERE ntw_service_id = ?', (service_id,))
+                self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
                 customer_id = self.dbman.fetchone()['customer_id']
 
-                self.dbman.query('SELECT vnf_id, vnf_name, vnf_position'
-                                 'FROM vnf'
-                                 'WHERE vnf.ntw_service_id=?', (service_id,))
+                self.dbman.query('SELECT vnf_id, vnf_name, vnf_position FROM vnf WHERE vnf.ntw_service_id=?', (service_id,))
                 vnfs = self.dbman.fetchall()
                 nso_vnfs = list()
 
@@ -247,7 +243,6 @@ class CreateOrder(Event):
             self.logger.info('Deleting VNFs: %s' % vnf_type_list_to_delete)
             for row in res:
                 ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
-
         else:
             # Processing post-createOrder (sub by CW)
             customer_id = get_custom_order_param('customer_id', custom_order_params)
@@ -389,7 +384,7 @@ class CreateOrder(Event):
 
                 for vnf_type_el in vnf_type_list:
                     # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
-                    cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id '
+                    cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id,vmvnic.vm_vnic_vimobject_id '
                                            'FROM vmvnic, vm, network_service, vnf '
                                            'WHERE network_service.customer_id = ? '
                                            'AND vnf.ntw_service_id = network_service.ntw_service_id '
@@ -411,9 +406,9 @@ class CreateOrder(Event):
                         },
                         'update-vmvnic': {
                             'left': (
-                            rows[0]['vm_vnic_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_id']),
+                            rows[0]['vm_vnic_vimobject_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
                             'right': (
-                            rows[0]['vm_vnic_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_id']),
+                            rows[0]['vm_vnic_vimobject_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
                             'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
                         }
                     }

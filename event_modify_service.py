@@ -30,7 +30,7 @@ class ModifyService(Event):
     def execute(self):
         """ The modifyService might be invoked by many scenarios, let's try to summarize them:
         1) NSO wants to delete a VNF, therefore it sends a modifyService with the VNF type it wants to delete
-        2) Custom Workflow want's to detach a VNF from a NetworkService as it wants to delete the VNF
+        2) Custom Workflow want's to detach a VNF from a NetworkService as it wants to delete the VNF (in this case do nothing)
         3) NSO wants to add/remove/add and remove/switch VNFs from an existing Network Service """
 
         modify_service = get_order_items('modifyService', self.order_json, 1)
@@ -42,6 +42,10 @@ class ModifyService(Event):
             self.logger.info('Nothing to do.')
             return
 
+        # Getting customer_id, it will be used later
+        self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
+        customer_id = self.dbman.fetchone()['customer_id']
+
         # NSO wants to delete a VNF
         if get_custom_input_param('operation', modify_service_cip) == 'delete':
             vnf_type = get_custom_input_param('vnf_type', modify_service_cip)
@@ -49,7 +53,7 @@ class ModifyService(Event):
             self.dbman.query('SELECT vnf_id FROM vnf WHERE vnf_type != ? AND ntw_service_id=?', (vnf_type, service_id))
             res = self.dbman.fetchall()
 
-            # Dissociating VNFs to delete from Network Service
+            # Dissociating VNF to delete from Network Service
             modify_service_json = load_json_file('./json/modify_service.json')
 
             if res is not None:
@@ -62,101 +66,81 @@ class ModifyService(Event):
 
             time.sleep(5)
 
-            # Deleting VNFs
+            # Deleting VNF
             self.dbman.query('SELECT vnf_id FROM vnf WHERE  vnf_type = ? AND ntw_service_id = ?', (vnf_type, service_id))
-            vnf_to_delete = self.dbman.fetchall()
+            vnf_id = self.dbman.fetchone()['vnf_id']
 
-            for vnf in vnf_to_delete:
-                vnf_id = vnf['vnf_id']
-                ecm_util.invoke_ecm_api(vnf['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
-
-            self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
-            customer_id = self.dbman.fetchone()['customer_id']
+            ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
 
             nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('success', customer_id,  service_id, vnf_id))
             return
+        if get_custom_input_param('operation', modify_service_cip) == 'create':
+            # Getting target vnf_list
+            target_vnf_type_list = get_custom_input_param('vnf_list', modify_service_cip).split(',')
 
-        customer_id = get_custom_input_param('customer_key', modify_service_cip)
+            # Getting current vnf_list from database
+            self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', (service_id, ))
+            res = self.dbman.fetchall()
 
-        if not customer_id:
-            self.logger.info('Nothing to do.')
-            return
+            curr_vnf_type_list = list()
+            for vnf_type in res:
+                curr_vnf_type_list.append(vnf_type['vnf_type'])
 
-        operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
-        workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
+            # Determining vnf to delete and to add
+            add_vnf = list()
+            delete_vnf = list()
 
-        if self.order_status == 'ERR':
-            self.logger.error(self.order_json['data']['order']['orderMsgs'])
-            nso_util.notify_nso(operation_error)
-            return 'FAILURE'
+            for vnf in target_vnf_type_list:
+                if vnf not in curr_vnf_type_list:
+                    add_vnf.append(vnf.strip())
 
-        # Getting target vnf_list
-        target_vnf_type_list = get_custom_input_param('vnf_list', modify_service_cip).split(',')
+            for vnf in curr_vnf_type_list:
+                if vnf not in target_vnf_type_list:
+                    delete_vnf.append(vnf.strip())
 
-        # Getting current vnf_list from database
-        self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', (service_id, ))
-        res = self.dbman.fetchall()
+            self.logger.info('VNF to add to the existing Network Service: %s' % add_vnf)
+            self.logger.info('VNF to delete to the existing Network Service: %s' % delete_vnf)
 
-        curr_vnf_type_list = list()
-        for vnf_type in res:
-            curr_vnf_type_list.append(vnf_type['vnf_type'])
+            # Sending order for new vnf to create
+            order_items = list()
 
-        # Determining vnf to delete and to add
-        add_vnf = list()
-        delete_vnf = list()
+            csr1000_image_name = 'csr1000v-universalk9.16.04.01'
+            fortinet_image_name = 'todo'
+            vmhd_name = '2vcpu_4096MBmem_40GBdisk'
 
-        for vnf in target_vnf_type_list:
-            if vnf not in curr_vnf_type_list:
-                add_vnf.append(vnf.strip())
+            # Getting existing VN_LFT_ID and VN_RIGHT_ID for this network service
+            self.dbman.query('SELECT vn_left_id, vn_right_id '
+                             'FROM vnf, vn_group '
+                             'WHERE vnf.ntw_service_id = ? '
+                             'AND vnf.vn_group_id = vn_group.vn_group_id', (service_id, ))
+            res = self.dbman.fetchone()
+            vn_left_id = res['vn_left_id']
+            vn_right_id = res['vn_right_id']
 
-        for vnf in curr_vnf_type_list:
-            if vnf not in target_vnf_type_list:
-                delete_vnf.append(vnf.strip())
+            i = 1
+            for vnf_type in add_vnf:
+                order_items.append(get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
+                order_items.append(get_create_vm(str(i + 1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
+                order_items.append(get_create_vmvnic(str(i + 2), customer_id + '-' + vnf_type + '-left', '', str(i + 1), 'desc', vn_left_id))
+                order_items.append(get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '', str(i + 1), 'desc', vn_right_id))
+                # order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
+                i += 4  # TODO change to 5 uncomment
 
-        self.logger.info('VNF to add to the existing Network Service: %s' % add_vnf)
-        self.logger.info('VNF to delete to the existing Network Service: %s' % delete_vnf)
+            order = dict(
+                {
+                    "tenantName": c.ecm_tenant_name,
+                    "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id),
+                                          get_cop('next_action','delete_vnf'), get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf))],
+                    "orderItems": order_items
+                }
+            )
 
-        # Sending order for new vnf to create
-        order_items = list()
-
-        csr1000_image_name = 'csr1000v-universalk9.16.04.01'
-        fortinet_image_name = 'todo'
-        vmhd_name = '2vcpu_4096MBmem_40GBdisk'
-
-        # Getting existing VN_LFT_ID and VN_RIGHT_ID for this network service
-        self.dbman.query('SELECT vn_left_id, vn_right_id '
-                         'FROM vnf, vn_group '
-                         'WHERE vnf.ntw_service_id = ? '
-                         'AND vnf.vn_group_id = vn_group.vn_group_id', (service_id, ))
-        res = self.dbman.fetchone()
-        vn_left_id = res['vn_left_id']
-        vn_right_id = res['vn_right_id']
-
-        i = 1
-        for vnf_type in add_vnf:
-            order_items.append(get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
-            order_items.append(get_create_vm(str(i + 1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
-            order_items.append(get_create_vmvnic(str(i + 2), customer_id + '-' + vnf_type + '-left', '', str(i + 1), 'desc', vn_left_id))
-            order_items.append(get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '', str(i + 1), 'desc', vn_right_id))
-            # order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
-            i += 4  # TODO change to 5 uncomment
-
-        order = dict(
-            {
-                "tenantName": c.ecm_tenant_name,
-                "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id),
-                                      get_cop('next_action','delete_vnf'), get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf))],
-                "orderItems": order_items
-            }
-        )
-
-        try:
-            ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
-        except (ECMReqStatusError, ECMConnectionError) as e:
-            self.logger.exception(e)
-            operation_error['operation'] = 'createVnf'
-            nso_util.notify_nso(operation_error)
-            return 'FAILURE'
+            try:
+                ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
+            except (ECMReqStatusError, ECMConnectionError) as e:
+                self.logger.exception(e)
+                # TODO notify NSO
+                return 'FAILURE'
 
         # TODO send modifyService with ex-input
 

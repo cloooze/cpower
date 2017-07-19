@@ -62,3 +62,6 @@ class DeleteService(Event):
             self.logger.exception(e)
             nso_util.notify_nso(workflow_error)
             return 'FAILURE'
+
+        nso_util.notify_nso('deleteService',
+                            nso_util.get_delete_service_data_response('success', customer_id, service_id))
