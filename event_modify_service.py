@@ -6,6 +6,7 @@ import config as c
 from ecm_exception import *
 from event import Event
 from utils import *
+import time
 
 
 INTERNAL_ERROR = '100'
@@ -27,6 +28,11 @@ class ModifyService(Event):
         pass
 
     def execute(self):
+        """ The modifyService might be invoked by many scenarios, let's try to summarize them:
+        1) NSO wants to delete a VNF, therefore it sends a modifyService with the VNF type it wants to delete
+        2) Custom Workflow want's to detach a VNF from a NetworkService as it wants to delete the VNF
+        3) NSO wants to add/remove/add and remove/switch VNFs from an existing Network Service """
+
         modify_service = get_order_items('modifyService', self.order_json, 1)
         service_id = modify_service['id']
 
@@ -36,7 +42,41 @@ class ModifyService(Event):
             self.logger.info('Nothing to do.')
             return
 
-        customer_id = get_custom_input_param('Cust_Key', modify_service_cip)
+        # NSO wants to delete a VNF
+        if get_custom_input_param('operation', modify_service_cip) == 'delete':
+            vnf_type = get_custom_input_param('vnf_type', modify_service_cip)
+
+            self.dbman.query('SELECT vnf_id FROM vnf WHERE vnf_type != ? AND ntw_service_id=?', (vnf_type, service_id))
+            res = self.dbman.fetchall()
+
+            # Dissociating VNFs to delete from Network Service
+            modify_service_json = load_json_file('./json/modify_service.json')
+
+            if res is not None:
+                for vnf in res:
+                    modify_service_json['vapps'].append({'id': vnf['vnf_id']})
+
+            modify_service_json['customInputParams'].append(get_cop('next_action', 'skip'))
+
+            ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+
+            time.sleep(5)
+
+            # Deleting VNFs
+            self.dbman.query('SELECT vnf_id FROM vnf WHERE  vnf_type = ? AND ntw_service_id = ?', (vnf_type, service_id))
+            vnf_to_delete = self.dbman.fetchall()
+
+            for vnf in vnf_to_delete:
+                vnf_id = vnf['vnf_id']
+                ecm_util.invoke_ecm_api(vnf['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
+
+            self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
+            customer_id = self.dbman.fetchone()['customer_id']
+
+            nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('success', customer_id,  service_id, vnf_id))
+            return
+
+        customer_id = get_custom_input_param('customer_key', modify_service_cip)
 
         if not customer_id:
             self.logger.info('Nothing to do.')

@@ -303,10 +303,12 @@ class CreateOrder(Event):
             vnf_type_list = list()
             position = 0
             # Getting last position number
-            self.dbman.query('SELECT MAX(vnf_position)'
-                             'FROM vnf'
-                             'WHERE ntw_service_id=?', (service_id,))
-            position = self.dbman.fetchone()['vnf_position']
+            self.dbman.query('SELECT MAX(vnf_position) as vnf_position FROM vnf WHERE ntw_service_id = ?', (service_id,))
+            res = self.dbman.fetchone()['vnf_position']
+            if res is not None:
+                position = res
+            else:
+                position = 0
 
             for vnf in create_vnfs:
                 position += 1
@@ -387,7 +389,7 @@ class CreateOrder(Event):
 
                 for vnf_type_el in vnf_type_list:
                     # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
-                    cur = self.dbman.query('SELECT vmvnic.vm_vnic_name '
+                    cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id '
                                            'FROM vmvnic, vm, network_service, vnf '
                                            'WHERE network_service.customer_id = ? '
                                            'AND vnf.ntw_service_id = network_service.ntw_service_id '
@@ -409,9 +411,9 @@ class CreateOrder(Event):
                         },
                         'update-vmvnic': {
                             'left': (
-                            rows[0]['vm_vnic_name'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                            rows[0]['vm_vnic_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_id']),
                             'right': (
-                            rows[0]['vm_vnic_name'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_name']),
+                            rows[0]['vm_vnic_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_id']),
                             'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
                         }
                     }
