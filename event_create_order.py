@@ -51,19 +51,12 @@ class CreateOrder(Event):
             rt_mgmt = get_custom_order_param('rt_mgmt', custom_order_params)
             vnf_list = get_custom_order_param('vnf_list', custom_order_params).split(',')
 
-            operation_error = {'operation': 'createService', 'result': 'failure', 'customer-key': customer_id}
-            workflow_error = {'operation': 'genericError', 'customer-key': customer_id}
-
-            if self.order_status == 'ERR':
-                nso_util.notify_nso(operation_error)
-                return 'FAILURE'
-
             # Checking if the needed custom order params are empty
-            empty_custom_order_param = get_empty_param(customer_id=customer_id, rt_left=rt_left, rt_right=rt_right)
+            empty_custom_order_param = get_empty_param(customer_id=customer_id, rt_left=rt_left, rt_right=rt_right,
+                                                       vnf_list=vnf_list)
 
-            if empty_custom_order_param is not None:
-                error_message = "Custom order parameter [%s] mandatory but not found or empty in the request." % empty_custom_order_param
-                self.logger.error(error_message)
+            if empty_custom_order_param is not None or self.order_status == 'ERR':
+                self.logger.error("Create Service in ERR or missing custom order parameters.")
                 nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
                 return 'FAILURE'
 
@@ -128,8 +121,7 @@ class CreateOrder(Event):
                 ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
             except (ECMReqStatusError, ECMConnectionError) as e:
                 self.logger.exception(e)
-                operation_error['operation'] = 'createVnf'
-                nso_util.notify_nso(operation_error)
+                nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
                 return 'FAILURE'
         elif create_vlink is not None:
             if self.order_status == 'ERR':
@@ -182,10 +174,8 @@ class CreateOrder(Event):
                 self.dbman.get_network_service(service_id)
                 customer_id = self.dbman.fetchone()['customer_id']
 
-                # TODO Notify NSO
-                # operation_error['operation'] = 'createVnf'
-                # nso_util.notify_nso(operation_error)
-                # return 'FAILURE'
+                nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
+                return 'FAILURE'
             else:
                 # Processing post-createVLink (sub by CW)
                 service_id = create_vlink['service']['id']
@@ -198,10 +188,50 @@ class CreateOrder(Event):
                                  'SET vlink_id = ?, vlink_name = ?, ntw_policy = ?  '
                                  'WHERE ntw_service_id = ?', (vlink_id, vlink_name, ','.join(policy_rule), service_id))
 
+                # Gathering information from DB to send back to NSO
+                # we need: customer_id, chain-left-ip, chain-right-ip, vnflist made of vnfid,vnfname,mgmt-ip,custip(left),ntwip(right)
+
                 self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
                 self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
 
-                self.logger.info('MOCK - Notifyin NSO SUCCESS')
+                self.dbman.query('SELECT customer_id'
+                                 'FROM network_service'
+                                 'WHERE ntw_service_id = ?', (service_id,))
+                customer_id = self.dbman.fetchone()['customer_id']
+
+                self.dbman.query('SELECT vnf_id, vnf_name, vnf_position'
+                                 'FROM vnf'
+                                 'WHERE vnf.ntw_service_id=?', (service_id,))
+                vnfs = self.dbman.fetchall()
+                nso_vnfs = list()
+
+                for vnf in vnfs:
+                    vnf_id = vnf['vnf_id']
+                    vnf_name = vnf['vnf_name']
+                    vnf_position = vnf['vnf_position']
+
+                    self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip'
+                                     'FROM vm, vmvnic'
+                                     'WHERE vm.vnf_id=?'
+                                     'AND vm.vm_id = vmvnic.vm_id', (vnf_id,))
+                    vm_vnics = self.dbman.fetchall()
+                    for vm_vnic in vm_vnics:
+                        if 'left' in vm_vnic['vm_vnic_name']:
+                            cust_ip = vm_vnic['vm_vnic_ip']
+                        elif 'right' in vm_vnic['vm_vnic_name']:
+                            ntw_ip = vm_vnic['vm_vnic_ip']
+                        else:
+                            mgmt_ip = vm_vnic['vm_vnic_ip']
+
+                    nso_vnf = {'vnf-id': vnf_id, 'vnf-name': vnf_name, 'mgmt-ip': mgmt_ip, 'cust-ip': cust_ip, 'ntw-ip': ntw_ip}
+                    nso_vnfs.append(nso_vnf)
+
+                    if vnf_position == 1:
+                        chain_left_ip = cust_ip
+                    if vnf_position == len(vnfs):
+                        chain_right_ip = ntw_ip
+
+                nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, chain_left_ip, chain_right_ip, nso_vnfs))
         elif get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':
             vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
             customer_id = get_custom_order_param('customer_id', custom_order_params)
@@ -272,6 +302,12 @@ class CreateOrder(Event):
             create_vnfs = get_order_items('createVapp', self.order_json)
             vnf_type_list = list()
             position = 0
+            # Getting last position number
+            self.dbman.query('SELECT MAX(vnf_position)'
+                             'FROM vnf'
+                             'WHERE ntw_service_id=?', (service_id,))
+            position = self.dbman.fetchone()['vnf_position']
+
             for vnf in create_vnfs:
                 position += 1
                 vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
@@ -309,7 +345,7 @@ class CreateOrder(Event):
 
                 # Save VNF
                 self.logger.info('Saving VNF info into database.')
-                vnf_row = (vnf_id, service_id, vn_group_id, vnf_type, str(position), 'YES')
+                vnf_row = (vnf_id, service_id, vn_group_id, vnf_type, position, 'YES')
                 self.dbman.save_vnf(vnf_row, False)
 
                 # Save VM

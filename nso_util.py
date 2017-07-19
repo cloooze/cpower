@@ -51,19 +51,19 @@ DELETE_VNF_OK = {
             "customer-key": "",
             "operation": "remove",
             "result": "success",
-            "service-id": "5",
+            "service-id": "",
             "vnf-id": ""
         }
     ]
 }
 
-DELETE_VNF_OK = {
+DELETE_VNF_NOK = {
     "customer": [
         {
             "customer-key": "",
             "operation": "remove",
             "result": "failed",
-            "service-id": "5",
+            "service-id": "",
             "vnf-id": "",
             "error-code": "2"
         }
@@ -94,7 +94,7 @@ DELETE_SERVICE_NOK = {
 }
 
 
-def get_create_vnf_data_response(result, customer_id, chain_left_ip=None, chain_right_ip=None, vnf_list=None):
+def get_create_vnf_data_response(result, customer_id, chain_left_ip, chain_right_ip, vnf_list):
     if result == 'success':
         CREATE_VNF_OK['customer'][0]['customer-key'] = customer_id
         CREATE_VNF_OK['customer'][0]['chain-left-ip'] = chain_left_ip
@@ -106,6 +106,30 @@ def get_create_vnf_data_response(result, customer_id, chain_left_ip=None, chain_
         return CREATE_VNF_NOK
 
 
+def get_delete_vnf_data_response(result, customer_id, service_id, vnf_id):
+    if result == 'success':
+        DELETE_VNF_OK['customer'][0]['customer-key'] = customer_id
+        DELETE_VNF_OK['customer'][0]['service-id'] = service_id
+        DELETE_VNF_OK['customer'][0]['vnf-id'] = vnf_id
+        return DELETE_VNF_OK
+    else:
+        DELETE_VNF_NOK['customer'][0]['customer-key'] = customer_id
+        DELETE_VNF_NOK['customer'][0]['service-id'] = service_id
+        DELETE_VNF_NOK['customer'][0]['vnf-id'] = vnf_id
+        return DELETE_SERVICE_NOK
+
+
+def get_delete_service_data_response(result, customer_id, service_id):
+    if result == 'success':
+        DELETE_SERVICE_OK['customer'][0]['customer-key'] = customer_id
+        DELETE_SERVICE_OK['customer'][0]['service-id'] = service_id
+        return DELETE_SERVICE_OK
+    else:
+        DELETE_SERVICE_NOK['customer'][0]['customer-key'] = customer_id
+        DELETE_SERVICE_NOK['customer'][0]['service-id'] = service_id
+        return DELETE_SERVICE_NOK
+
+
 def notify_nso(operation, data):
     count = 0
     while count < c.retry_n:
@@ -113,11 +137,11 @@ def notify_nso(operation, data):
         logger.debug("Sending data: %s" % data)
 
         if operation == 'createService':
-            nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri_create_service)
+            nso_endpoint = c.nso_server_address + c.nso_service_uri_create_service
         elif operation == 'deleteService':
-            nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri_delete_service)
+            nso_endpoint = c.nso_server_address + c.nso_service_uri_delete_service
         elif operation == 'deleteVnf':
-            nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri_delete_vnf)
+            nso_endpoint = c.nso_server_address + c.nso_service_uri_delete_vnf
 
         h = {'Content-Type': 'application/vnd.yang.data+json'}
         try:
@@ -139,4 +163,5 @@ def notify_nso(operation, data):
             return resp
     logger.error("Could not get a response from NSO. Connection Timeout.")
     raise NSOConnectionError
+
 
