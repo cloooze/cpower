@@ -64,9 +64,7 @@ class CreateOrder(Event):
             if empty_custom_order_param is not None:
                 error_message = "Custom order parameter [%s] mandatory but not found or empty in the request." % empty_custom_order_param
                 self.logger.error(error_message)
-                workflow_error['error-code'] = REQUEST_ERROR
-                workflow_error['error-message'] = error_message
-                nso_util.notify_nso(workflow_error)
+                nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
                 return 'FAILURE'
 
             service_id, service_name = create_service['id'], create_service['name']

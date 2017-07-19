@@ -11,97 +11,119 @@ from nso_exception import NSOConnectionError
 
 logger = logging.getLogger("cpower")
 
-CREATE_SERVICE = {
-    "cpwr:servicecreate": {
-        "customer-key": "",
-        "result": ""
-    }
-}
-
-DELETE_SERVICE = {
-    "cpwr:servicedelete": {
-        "customer-key": "",
-        "service-id": "",
-        "result": ""
-    }
-}
-
-CREATE_VNF = {
-    "cpwr:vnfcreate": {
-        "customer-key": "",
-        "vnf-id": "",
-        "result": "",
-        "vnf-info": {
-            "mgmt-ip": "",
-            "left-ip": "",
-            "right-ip": ""
+CREATE_VNF_OK = {
+    "customer": [
+        {
+            "customer-key": "",
+            "operation": "create",
+            "result": "success",
+            "chain-left-ip": "",
+            "chain-right-ip": "",
+            "vnf": [
+                {
+                    "vnf-id": "",
+                    "vnf-name": "",
+                    "mgmt-ip": "",
+                    "cust-ip": "",
+                    "ntw-ip": "",
+                }
+            ]
         }
-    }
+
+    ]
 }
 
-DELETE_VNF = {
-    "cpwr:vnfdelete": {
-        "customer-key": "",
-        "vnf-id": "",
-        "result": ""
-    }
-}
-
-WF_ERROR = {
-    "cpwr:error": {
-        "customer-key": "",
-        "error-code": "",
-        "error-message": ""
-    }
+CREATE_VNF_NOK = {
+    "customer": [
+        {
+            "customer-key": "",
+            "operation": "create",
+            "result": "failed",
+            "error-code": "5"
+        }
+    ]
 }
 
 
-def get_nso_json_data(params):
-    if params['operation'] == 'createService':
-        CREATE_SERVICE['cpwr:servicecreate']['customer-key'] = params['customer-key']
-        CREATE_SERVICE['cpwr:servicecreate']['result'] = params['result']
-        return CREATE_SERVICE
-    if params['operation'] == 'deleteService':
-        DELETE_SERVICE['cpwr:servicedelete']['customer-key'] = params['customer-key']
-        DELETE_SERVICE['cpwr:servicedelete']['result'] = params['result']
-        if params['result'] == 'success':
-            DELETE_SERVICE['cpwr:servicedelete']['service-id'] = params['service-id']
-        return DELETE_SERVICE
-    if params['operation'] == 'createVnf':
-        CREATE_VNF['cpwr:vnfcreate']['customer-key'] = params['customer-key']
-        CREATE_VNF['cpwr:vnfcreate']['result'] = params['result']
-        if params['result'] == 'success':
-            CREATE_VNF['cpwr:vnfcreate']['vnf-id'] = params['vnf-id']
-            CREATE_VNF['cpwr:vnfcreate']['vnf-info']['mgmt-ip'] = params['mgmt-ip']
-            CREATE_VNF['cpwr:vnfcreate']['vnf-info']['left-ip'] = params['left-ip']
-            CREATE_VNF['cpwr:vnfcreate']['vnf-info']['right-ip'] = params['right-ip']
-        return CREATE_VNF
-    if params['operation'] == 'deleteVnf':
-        DELETE_VNF['cpwr:vnfdelete']['customer-key'] = params['customer-key']
-        DELETE_VNF['cpwr:vnfdelete']['vnf-id'] = params['vnf-id']
-        DELETE_VNF['cpwr:vnfdelete']['result'] = params['result']
-        return DELETE_SERVICE
-    if params['operation'] == 'genericError':
-        WF_ERROR['cpwr:error']['customer-key'] = params['customer-key']
-        WF_ERROR['cpwr:error']['error-code'] = params['error-code']
-        WF_ERROR['cpwr:error']['error-message'] = params['error-message']
-        return WF_ERROR
-    return None
+DELETE_VNF_OK = {
+    "customer": [
+        {
+            "customer-key": "",
+            "operation": "remove",
+            "result": "success",
+            "service-id": "5",
+            "vnf-id": ""
+        }
+    ]
+}
+
+DELETE_VNF_OK = {
+    "customer": [
+        {
+            "customer-key": "",
+            "operation": "remove",
+            "result": "failed",
+            "service-id": "5",
+            "vnf-id": "",
+            "error-code": "2"
+        }
+    ]
+}
+
+DELETE_SERVICE_OK = {
+    "customer": [
+        {
+            "customer-key": "",
+            "operation": "remove",
+            "result": "success",
+            "service-id": ""
+        }
+    ]
+}
+
+DELETE_SERVICE_NOK = {
+    "customer": [
+        {
+            "customer-key": "",
+            "operation": "remove",
+            "result": "failed",
+            "service-id": "",
+            "error-code": "2"
+        }
+    ]
+}
 
 
-def notify_nso(params):
+def get_create_vnf_data_response(result, customer_id, chain_left_ip=None, chain_right_ip=None, vnf_list=None):
+    if result == 'success':
+        CREATE_VNF_OK['customer'][0]['customer-key'] = customer_id
+        CREATE_VNF_OK['customer'][0]['chain-left-ip'] = chain_left_ip
+        CREATE_VNF_OK['customer'][0]['chain-right-ip'] = chain_right_ip
+        CREATE_VNF_OK['customer'][0]['vnf'] = vnf_list
+        return CREATE_VNF_OK
+    else:
+        CREATE_VNF_NOK['customer'][0]['customer-key'] = customer_id
+        return CREATE_VNF_NOK
+
+
+def notify_nso(operation, data):
     count = 0
     while count < c.retry_n:
-        json_data = get_nso_json_data(params)
+        logger.info("Calling NSO API - POST /cpower/vnfconfig")
+        logger.debug("Sending data: %s" % data)
 
-        logger.info("Calling NSO API - PATCH /cpower/vnfconfig")
-        logger.debug("Sending data: %s" % json_data)
-        nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri)
+        if operation == 'createService':
+            nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri_create_service)
+        elif operation == 'deleteService':
+            nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri_delete_service)
+        elif operation == 'deleteVnf':
+            nso_endpoint = '%s%s' % (c.nso_server_address, c.nso_service_uri_delete_vnf)
+
         h = {'Content-Type': 'application/vnd.yang.data+json'}
         try:
             resp = requests.patch(nso_endpoint, timeout=c.nso_service_timeout,
                                   auth=(c.nso_auth_username, c.nso_auth_password),
-                                  headers=h, data=json.dumps(json_data, sort_keys=True))
+                                  headers=h, data=json.dumps(data, sort_keys=True))
             resp.raise_for_status()
         except requests.exceptions.HTTPError as r:
             logger.error(r)

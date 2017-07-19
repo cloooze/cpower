@@ -137,9 +137,6 @@ def get_create_vm(order_item_id, vdc_id, vm_name, image_name, vmhd_name, order_i
                     "id": vdc_id
                 },
                 "name": vm_name,
-                "securityGroups": [{
-                    "name": "allOpen"
-                }],
                 "bootSource": {
                     "imageName": image_name
                 },
