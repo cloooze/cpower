@@ -47,7 +47,7 @@ class DeleteVnf(Event):
 
         try:
             ntw_policy_list.remove(vnf_type)
-            self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', (','.join(ntw_policy_list), service_id))
+            self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', tuple(','.join(ntw_policy_list)) + tuple(service_id))
             self.logger.info('Updating NTW_POLICY %s from database.' % ','.join(ntw_policy_list))
         except ValueError:
             # VNF type not in list (it should not happen)

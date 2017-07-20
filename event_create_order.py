@@ -211,19 +211,19 @@ class CreateOrder(Event):
                     vm_vnics = self.dbman.fetchall()
                     for vm_vnic in vm_vnics:
                         if 'left' in vm_vnic['vm_vnic_name']:
-                            cust_ip = vm_vnic['vm_vnic_ip']
+                            left_ip = vm_vnic['vm_vnic_ip']
                         elif 'right' in vm_vnic['vm_vnic_name']:
-                            ntw_ip = vm_vnic['vm_vnic_ip']
+                            right_ip = vm_vnic['vm_vnic_ip']
                         else:
                             mgmt_ip = vm_vnic['vm_vnic_ip']
 
-                    nso_vnf = {'vnf-id': vnf_id, 'vnf-name': vnf_name, 'mgmt-ip': mgmt_ip, 'cust-ip': cust_ip, 'ntw-ip': ntw_ip}
+                    nso_vnf = {'vnf-id': vnf_id, 'vnf-name': vnf_name, 'mgmt-ip': mgmt_ip, 'cust-ip': left_ip, 'ntw-ip': right_ip}
                     nso_vnfs.append(nso_vnf)
 
                     if vnf_position == 1:
-                        chain_left_ip = cust_ip
+                        chain_left_ip = left_ip
                     if vnf_position == len(vnfs):
-                        chain_right_ip = ntw_ip
+                        chain_right_ip = right_ip
 
                 nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, chain_left_ip, chain_right_ip, nso_vnfs))
         elif get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':

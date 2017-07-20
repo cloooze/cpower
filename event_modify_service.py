@@ -101,8 +101,11 @@ class ModifyService(Event):
             order = dict(
                 {
                     "tenantName": c.ecm_tenant_name,
-                    "customOrderParams": [get_cop('service_id', service_id), get_cop('customer_id', customer_id),
-                                          get_cop('next_action','delete_vnf'), get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf))],
+                    "customOrderParams": [
+                        get_cop('service_id', service_id),
+                        get_cop('customer_id', customer_id),
+                        (get_cop('next_action','delete_vnf') if len(delete_vnf) > 0 else None),
+                        (get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)) if len(delete_vnf) > 0 else None)],
                     "orderItems": order_items
                 }
             )
@@ -116,8 +119,8 @@ class ModifyService(Event):
         elif len(delete_vnf) > 0:
             placeholders = ','.join('?' for vnf in delete_vnf)
 
-            self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type IN (%)' % placeholders,
-                             (service_id, tuple(delete_vnf)))
+            self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type IN (%s)' % placeholders,
+                             tuple([service_id]) + tuple(delete_vnf))
             res = self.dbman.fetchall()
 
             if res is not None:

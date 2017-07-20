@@ -24,8 +24,8 @@ CREATE_VNF_OK = {
                     "vnf-id": "",
                     "vnf-name": "",
                     "mgmt-ip": "",
-                    "cust-ip": "",
-                    "ntw-ip": "",
+                    "left-ip": "",
+                    "right-ip": "",
                 }
             ]
         }
