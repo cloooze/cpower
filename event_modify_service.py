@@ -104,8 +104,8 @@ class ModifyService(Event):
                     "customOrderParams": [
                         get_cop('service_id', service_id),
                         get_cop('customer_id', customer_id),
-                        (get_cop('next_action','delete_vnf') if len(delete_vnf) > 0 else None),
-                        (get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)) if len(delete_vnf) > 0 else None)],
+                        (get_cop('next_action','delete_vnf') if len(delete_vnf) > 0 else {}),
+                        (get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)) if len(delete_vnf) > 0 else {})],
                     "orderItems": order_items
                 }
             )

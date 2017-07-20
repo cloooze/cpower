@@ -41,17 +41,15 @@ class DeleteVnf(Event):
 
         res = self.dbman.fetchone()
 
-        ntw_policy_list = res['ntw_policy'].split(',')
+        # Doing this because ntw_policy column contains comma separated values as --> <cust_id>-<vnf_type>
+        ntw_policy_list = list(vnf.split('-')[1] for vnf in res['ntw_policy'].split(','))
         vnf_type = res['vnf_type']
         service_id = res['ntw_service_id']
 
-        try:
-            ntw_policy_list.remove(vnf_type)
-            self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', tuple(','.join(ntw_policy_list)) + tuple(service_id))
-            self.logger.info('Updating NTW_POLICY %s from database.' % ','.join(ntw_policy_list))
-        except ValueError:
-            # VNF type not in list (it should not happen)
-            pass
+        ntw_policy_list.remove(vnf_type)
+        self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', tuple(','.join(ntw_policy_list)) + tuple([service_id]))
+        self.logger.info('Updating NTW_POLICY %s from database.' % ','.join(ntw_policy_list))
+
 
         self.logger.info('Deleting VNF %s from database.' % vnf_id)
 
