@@ -1,4 +1,4 @@
-nso_server_address = "http://10.42.241.121:80"
+nso_server_address = "http://10.42.241.121:8080"
 nso_service_uri_create_service = "/api/running/cpower/ecm-response/create-service"
 nso_service_uri_delete_service = "/api/running/cpower/ecm-response/delete-service"
 nso_service_uri_delete_vnf = "/api/running/cpower/ecm-response/delete-vnf"

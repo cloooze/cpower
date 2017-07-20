@@ -38,6 +38,7 @@ class CreateOrder(Event):
 
         if self.order_status == 'ERR':
             self.logger.error(self.order_json['data']['order']['orderMsgs'])
+            # TODO notify NSO (error)
 
         # CREATE SERVICE submitted by NSO
         create_service = get_order_items('createService', self.order_json, 1)
@@ -197,19 +198,16 @@ class CreateOrder(Event):
                 self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
                 customer_id = self.dbman.fetchone()['customer_id']
 
-                self.dbman.query('SELECT vnf_id, vnf_name, vnf_position FROM vnf WHERE vnf.ntw_service_id=?', (service_id,))
+                self.dbman.query('SELECT vnf_id, vnf_type, vnf_position FROM vnf WHERE vnf.ntw_service_id=?', (service_id,))
                 vnfs = self.dbman.fetchall()
                 nso_vnfs = list()
 
                 for vnf in vnfs:
                     vnf_id = vnf['vnf_id']
-                    vnf_name = vnf['vnf_name']
+                    vnf_name = vnf['vnf_type']
                     vnf_position = vnf['vnf_position']
 
-                    self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip'
-                                     'FROM vm, vmvnic'
-                                     'WHERE vm.vnf_id=?'
-                                     'AND vm.vm_id = vmvnic.vm_id', (vnf_id,))
+                    self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip FROM vm, vmvnic WHERE vm.vnf_id=? AND vm.vm_id = vmvnic.vm_id', (vnf_id,))
                     vm_vnics = self.dbman.fetchall()
                     for vm_vnic in vm_vnics:
                         if 'left' in vm_vnic['vm_vnic_name']:
@@ -241,6 +239,7 @@ class CreateOrder(Event):
                                    'AND vnf_type IN (%s)' % placeholders, tuple([service_id]) + tuple(vnf_type_list_to_delete.split(','))).fetchall()
 
             self.logger.info('Deleting VNFs: %s' % vnf_type_list_to_delete)
+
             for row in res:
                 ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
         else:
@@ -326,16 +325,15 @@ class CreateOrder(Event):
                             resp = json.loads(r.text)
                             vmvnic_ip_l = resp['data']['vmVnic']['internalIpAddress'][0]
                             vmvnic_vimobjectid_l = resp['data']['vmVnic']['vimObjectId']
-
                         elif 'right' in vmvnic['vn']['name']:
                             vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
                             r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
                             resp = json.loads(r.text)
                             vmvnic_ip_r = resp['data']['vmVnic']['internalIpAddress'][0]
                             vmvnic_vimobjectid_r = resp['data']['vmVnic']['vimObjectId']
-                        else:
+                        elif 'management' in vmvnic['vn']['name']:
                             vmvnic_id_mgmt, vmvnic_name_mgmt = vmvnic['id'], vmvnic['name']
-                            r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
+                            r = ecm_util.invoke_ecm_api(vmvnic_id_mgmt, c.ecm_service_api_vmvnics, 'GET')
                             resp = json.loads(r.text)
                             vmvnic_ip_mgmt = resp['data']['vmVnic']['internalIpAddress'][0]
                             vmvnic_vimobjectid_mgmt = resp['data']['vmVnic']['vimObjectId']

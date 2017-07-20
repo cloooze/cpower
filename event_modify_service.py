@@ -46,61 +46,33 @@ class ModifyService(Event):
         self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
         customer_id = self.dbman.fetchone()['customer_id']
 
-        # NSO wants to delete a VNF
-        if get_custom_input_param('operation', modify_service_cip) == 'delete':
-            vnf_type = get_custom_input_param('vnf_type', modify_service_cip)
+        # Getting target vnf_list
+        target_vnf_type_list = get_custom_input_param('vnf_list', modify_service_cip).split(',')
 
-            self.dbman.query('SELECT vnf_id FROM vnf WHERE vnf_type != ? AND ntw_service_id=?', (vnf_type, service_id))
-            res = self.dbman.fetchall()
+        # Getting current vnf_list from database
+        self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', (service_id, ))
+        res = self.dbman.fetchall()
 
-            # Dissociating VNF to delete from Network Service
-            modify_service_json = load_json_file('./json/modify_service.json')
+        curr_vnf_type_list = list()
+        for vnf_type in res:
+            curr_vnf_type_list.append(vnf_type['vnf_type'])
 
-            if res is not None:
-                for vnf in res:
-                    modify_service_json['vapps'].append({'id': vnf['vnf_id']})
+        # Determining vnf to delete and to add
+        add_vnf = list()
+        delete_vnf = list()
 
-            modify_service_json['customInputParams'].append(get_cop('next_action', 'skip'))
+        for vnf in target_vnf_type_list:
+            if vnf not in curr_vnf_type_list:
+                add_vnf.append(vnf.strip())
 
-            ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+        for vnf in curr_vnf_type_list:
+            if vnf not in target_vnf_type_list:
+                delete_vnf.append(vnf.strip())
 
-            time.sleep(5)
+        self.logger.info('VNF to add to the existing Network Service: %s' % add_vnf)
+        self.logger.info('VNF to delete (will be deleted if the creation succeed): %s' % delete_vnf)
 
-            # Deleting VNF
-            self.dbman.query('SELECT vnf_id FROM vnf WHERE  vnf_type = ? AND ntw_service_id = ?', (vnf_type, service_id))
-            vnf_id = self.dbman.fetchone()['vnf_id']
-
-            ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
-
-            nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('success', customer_id,  service_id, vnf_id))
-            return
-        if get_custom_input_param('operation', modify_service_cip) == 'create':
-            # Getting target vnf_list
-            target_vnf_type_list = get_custom_input_param('vnf_list', modify_service_cip).split(',')
-
-            # Getting current vnf_list from database
-            self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', (service_id, ))
-            res = self.dbman.fetchall()
-
-            curr_vnf_type_list = list()
-            for vnf_type in res:
-                curr_vnf_type_list.append(vnf_type['vnf_type'])
-
-            # Determining vnf to delete and to add
-            add_vnf = list()
-            delete_vnf = list()
-
-            for vnf in target_vnf_type_list:
-                if vnf not in curr_vnf_type_list:
-                    add_vnf.append(vnf.strip())
-
-            for vnf in curr_vnf_type_list:
-                if vnf not in target_vnf_type_list:
-                    delete_vnf.append(vnf.strip())
-
-            self.logger.info('VNF to add to the existing Network Service: %s' % add_vnf)
-            self.logger.info('VNF to delete to the existing Network Service: %s' % delete_vnf)
-
+        if len(add_vnf) > 0:
             # Sending order for new vnf to create
             order_items = list()
 
@@ -123,8 +95,8 @@ class ModifyService(Event):
                 order_items.append(get_create_vm(str(i + 1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
                 order_items.append(get_create_vmvnic(str(i + 2), customer_id + '-' + vnf_type + '-left', '', str(i + 1), 'desc', vn_left_id))
                 order_items.append(get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '', str(i + 1), 'desc', vn_right_id))
-                # order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
-                i += 4  # TODO change to 5 uncomment
+                order_items.append(get_create_vmvnic(str(i + 4), customer_id + '-' + vnf_type + '-mgmt', '', str(i + 1), 'desc', c.mgmt_vn_id))
+                i += 5
 
             order = dict(
                 {
@@ -141,20 +113,17 @@ class ModifyService(Event):
                 self.logger.exception(e)
                 # TODO notify NSO
                 return 'FAILURE'
+        elif len(delete_vnf) > 0:
+            placeholders = ','.join('?' for vnf in delete_vnf)
 
-        # TODO send modifyService with ex-input
+            self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type IN (%)' % placeholders,
+                             (service_id, tuple(delete_vnf)))
+            res = self.dbman.fetchall()
 
-        '''
-        self.logger.info('Modify VLINK object...')
+            if res is not None:
+                for vnf in res:
+                    ecm_util.invoke_ecm_api(vnf['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
 
-        vlink_json = load_json_file('json/create_vlink.json')
-        vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
-        vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
 
-        ex_input = load_json_file('json/extensions_input_create.json')
-
-        # In case of multiple VNF, duplicate the entire service-instance tag
-        policy_rule_list = list()
-        '''
 
 

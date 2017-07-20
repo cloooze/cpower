@@ -40,25 +40,21 @@ class DeleteVnf(Event):
                          'AND vnf.ntw_service_id = ns.ntw_service_id', (vnf_id,))
 
         res = self.dbman.fetchone()
+
         ntw_policy_list = res['ntw_policy'].split(',')
         vnf_type = res['vnf_type']
         service_id = res['ntw_service_id']
 
-        # Not needed
-        '''
-        for ntw_policy in ntw_policy_list:
-            if vnf_type in ntw_policy:
-                ntw_policy_list.pop(ntw_policy)
-
-        new_ntw_policy_list = ','.join(ntw_policy_list)
-        
-        self.logger.info('Updating NTW_POLICY column for Network Service %s. Data: %s ' % (service_id, new_ntw_policy_list))
-        self.dbman.query('UPDATE network_service'
-                         'SET ntw_policy = ?'
-                         'WHERE ntw_service_id = ?', (new_ntw_policy_list, service_id))
-        '''
+        try:
+            ntw_policy_list.remove(vnf_type)
+            self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', (','.join(ntw_policy_list), service_id))
+            self.logger.info('Updating NTW_POLICY %s from database.' % ','.join(ntw_policy_list))
+        except ValueError:
+            # VNF type not in list (it should not happen)
+            pass
 
         self.logger.info('Deleting VNF %s from database.' % vnf_id)
+
         self.dbman.delete_vnf(vnf_id)
 
         self.dbman.commit()

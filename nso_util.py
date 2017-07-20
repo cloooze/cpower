@@ -52,7 +52,8 @@ DELETE_VNF_OK = {
             "operation": "remove",
             "result": "success",
             "service-id": "",
-            "vnf-id": ""
+            "vnf-id": "",
+            "vnf-name": "",
         }
     ]
 }
@@ -65,6 +66,7 @@ DELETE_VNF_NOK = {
             "result": "failed",
             "service-id": "",
             "vnf-id": "",
+            "vnf-name": "",
             "error-code": "2"
         }
     ]
@@ -94,7 +96,7 @@ DELETE_SERVICE_NOK = {
 }
 
 
-def get_create_vnf_data_response(result, customer_id, chain_left_ip, chain_right_ip, vnf_list):
+def get_create_vnf_data_response(result, customer_id, chain_left_ip=None, chain_right_ip=None, vnf_list=None):
     if result == 'success':
         CREATE_VNF_OK['customer'][0]['customer-key'] = customer_id
         CREATE_VNF_OK['customer'][0]['chain-left-ip'] = chain_left_ip
@@ -106,16 +108,18 @@ def get_create_vnf_data_response(result, customer_id, chain_left_ip, chain_right
         return CREATE_VNF_NOK
 
 
-def get_delete_vnf_data_response(result, customer_id, service_id, vnf_id):
+def get_delete_vnf_data_response(result, customer_id, service_id, vnf_id, vnf_name):
     if result == 'success':
         DELETE_VNF_OK['customer'][0]['customer-key'] = customer_id
         DELETE_VNF_OK['customer'][0]['service-id'] = service_id
         DELETE_VNF_OK['customer'][0]['vnf-id'] = vnf_id
+        DELETE_VNF_NOK['customer'][0]['vnf-name'] = vnf_name
         return DELETE_VNF_OK
     else:
         DELETE_VNF_NOK['customer'][0]['customer-key'] = customer_id
         DELETE_VNF_NOK['customer'][0]['service-id'] = service_id
         DELETE_VNF_NOK['customer'][0]['vnf-id'] = vnf_id
+        DELETE_VNF_NOK['customer'][0]['vnf-name'] = vnf_name
         return DELETE_SERVICE_NOK
 
 
@@ -133,8 +137,6 @@ def get_delete_service_data_response(result, customer_id, service_id):
 def notify_nso(operation, data):
     count = 0
     while count < c.retry_n:
-        logger.info("Calling NSO API - POST /cpower/vnfconfig")
-        logger.debug("Sending data: %s" % data)
 
         if operation == 'createService':
             nso_endpoint = c.nso_server_address + c.nso_service_uri_create_service
@@ -143,9 +145,12 @@ def notify_nso(operation, data):
         elif operation == 'deleteVnf':
             nso_endpoint = c.nso_server_address + c.nso_service_uri_delete_vnf
 
+        logger.info("Calling NSO API - POST %s" % nso_endpoint)
+        logger.debug("Sending data: %s" % data)
+
         h = {'Content-Type': 'application/vnd.yang.data+json'}
         try:
-            resp = requests.patch(nso_endpoint, timeout=c.nso_service_timeout,
+            resp = requests.post(nso_endpoint, timeout=c.nso_service_timeout,
                                   auth=(c.nso_auth_username, c.nso_auth_password),
                                   headers=h, data=json.dumps(data, sort_keys=True))
             resp.raise_for_status()
