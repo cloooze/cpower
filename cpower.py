@@ -84,6 +84,7 @@ def main():
 
         event.notify()
 
+        '''
         # TODO notify NSO here
         if source_api == 'createOrder':
             # TODO notify create service ok/notok
@@ -97,6 +98,7 @@ def main():
             # TODO notify delete service ok/notok
             logger.info('MOCK - notify delete service ok/notok')
             pass
+        '''
 
         logger.info('End of script execution: [%s]' % ('SUCCESS' if not result else 'FAILURE'))
         sys.exit(0 if not result else 1)
