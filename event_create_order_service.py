@@ -24,7 +24,7 @@ class CreateOrderService(Event):
         self.source_api = source_api
 
     def notify(self):
-        pass
+        self.logger.info('Nothing to notify to NSO.')
 
     def execute(self):
         # Getting customer order params from getOrder response
@@ -72,7 +72,7 @@ class CreateOrderService(Event):
             # re-submitted after a previous request that encountered an error
             pass
 
-        ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, '', '', '')
+        ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, '', '', '', 'NO')
         try:
             self.dbman.save_network_service(ntw_service_row)
             self.logger.info('Network Service \'%s\' successfully stored into database.' % service_id)
@@ -104,7 +104,7 @@ class CreateOrderService(Event):
             order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
 
             # Saving temporary VNFs into DB
-            self.logger.info('Saving temporary VNF [%s] into database' % vnf_type + '_TMP')
+            self.logger.info('Saving temporary VNF [%s] into database' % vnf_type)
             row = (customer_id + vnf_type + '_TMP', service_id, '', vnf_type, position, 'NO', 'CREATE', 'PENDING')
             self.dbman.save_vnf(row)
             self.dbman.commit()

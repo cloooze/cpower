@@ -82,6 +82,8 @@ def main():
 
         result = event.execute()
 
+        event.notify()
+
         # TODO notify NSO here
         if source_api == 'createOrder':
             # TODO notify create service ok/notok
