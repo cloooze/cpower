@@ -72,15 +72,15 @@ def main():
             logger.error('Operation [%s] not handled by workflow.' % source_api)
             sys.exit(1)
 
-        if event == 'createOrder':
-            if get_order_items('createVlink', order_json, 1) is not None:
-                result = events['createOrder'][2]
+        if source_api == 'createOrder':
+            if get_order_items('createVLink', order_json, 1) is not None:
+                event = events['createOrder'][2]
             elif get_order_items('createService', order_json, 1) is not None:
-                result = events['createOrder'][1]
+                event = events['createOrder'][1]
             else:
-                result = events['createOrder'][0]
-        else:
-            result = event.execute()
+                event = events['createOrder'][0]
+
+        result = event.execute()
 
         # TODO notify NSO here
         if source_api == 'createOrder':
