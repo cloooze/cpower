@@ -149,8 +149,9 @@ class CreateOrder(Event):
                 # Save VNF
                 self.logger.info('Saving VNF info into database.')
 
-                self.dbman.query('UPDATE vnf SET vnf_id = ?, vn_group_id = ?, ntw_service_binding = ?, vnf_status = ? WHERE ntw_service_id '
-                                 '= ? AND vnf_type = ?', (vnf_id, vn_group_id, 'YES', 'COMPLETE', service_id, vnf_type))
+                self.dbman.query('UPDATE vnf SET vnf_id = ?, vn_group_id = ?, ntw_service_binding = ?, vnf_status = ? '
+                                 'WHERE ntw_service_id = ? AND vnf_type = ?', (vnf_id, vn_group_id, 'YES',
+                                                                               'COMPLETE', service_id, vnf_type))
 
                 # Save VM
                 self.logger.info('Saving VM info into database.')
