@@ -53,9 +53,10 @@ class ModifyService(Event):
         self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', (service_id, ))
         res = self.dbman.fetchall()
 
-        curr_vnf_type_list = list()
-        for vnf_type in res:
-            curr_vnf_type_list.append(vnf_type['vnf_type'])
+        curr_vnf_type_list = list(vnf_type['vnf_type'] for vnf_type in res)
+        #curr_vnf_type_list = list()
+        #for vnf_type in res:
+        #    curr_vnf_type_list.append(vnf_type['vnf_type'])
 
         # Determining vnf to delete and to add
         add_vnf = list()

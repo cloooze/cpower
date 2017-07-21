@@ -15,12 +15,12 @@ CREATE_VNF_OK = {
     "customer": [
         {
             "customer-key": "",
-            "operation": "create",
             "result": "success",
             "chain-left-ip": "",
             "chain-right-ip": "",
             "vnf": [
                 {
+                    "operation": "",
                     "vnf-id": "",
                     "vnf-name": "",
                     "mgmt-ip": "",

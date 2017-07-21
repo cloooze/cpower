@@ -7,8 +7,9 @@ import config as c
 from logging.handlers import *
 from ecm_exception import *
 from event_create_order import CreateOrder
+from event_create_order_vlink import CreateOrderVlink
+from event_create_order_service import CreateOrderService
 from event_delete_vn import DeleteVn
-from event_deploy_ovf_package import DeployOvfPackage
 from event_modify_service import ModifyService
 from event_delete_service import DeleteService
 from event_delete_vnf import DeleteVnf
@@ -53,8 +54,11 @@ def main():
     order_json = json.loads(order_resp.text)
 
     events = {
-        'createOrder': CreateOrder(order_status, order_id, source_api, order_json),
-        'deployOvfPackage': DeployOvfPackage(order_status, order_id, source_api, order_json),
+        'createOrder': [
+            CreateOrder(order_status, order_id, source_api, order_json),
+            CreateOrderService(order_status, order_id, source_api, order_json),
+            CreateOrderVlink(order_status, order_id, source_api, order_json)
+        ],
         'modifyService': ModifyService(order_status, order_id, source_api, order_json),
         'deleteService': DeleteService(order_status, order_id, source_api, order_json),
         'deleteVn': DeleteVn(order_status, order_id, source_api, order_json),
@@ -68,7 +72,29 @@ def main():
             logger.error('Operation [%s] not handled by workflow.' % source_api)
             sys.exit(1)
 
-        result = event.execute()
+        if event == 'createOrder':
+            if get_order_items('createVlink', order_json, 1) is not None:
+                result = events['createOrder'][2]
+            elif get_order_items('createService', order_json, 1) is not None:
+                result = events['createOrder'][1]
+            else:
+                result = events['createOrder'][0]
+        else:
+            result = event.execute()
+
+        # TODO notify NSO here
+        if source_api == 'createOrder':
+            # TODO notify create service ok/notok
+            logger.info('MOCK - notify create service ok/notok')
+            pass
+        elif source_api == 'modifyService':
+            # TODO notify modify vnf ok/notok
+            logger.info('MOCK - notify modify vnf ok/notok')
+            pass
+        elif source_api == 'deleteService':
+            # TODO notify delete service ok/notok
+            logger.info('MOCK - notify delete service ok/notok')
+            pass
 
         logger.info('End of script execution: [%s]' % ('SUCCESS' if not result else 'FAILURE'))
         sys.exit(0 if not result else 1)
