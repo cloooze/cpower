@@ -22,14 +22,13 @@ class DeleteService(Event):
         self.source_api = source_api
 
     def notify(self):
+        # TODO notify nso if status=ERR
         pass
 
     def execute(self):
         workflow_error = {'operation': 'genericError', 'customer-key': ''}
 
         if self.order_status == 'ERR':
-            self.logger.error(self.order_json['data']['order']['orderMsgs'])
-            nso_util.notify_nso(workflow_error)
             return 'FAILURE'
 
         delete_service = get_order_items('deleteService', self.order_json, 1)
@@ -45,8 +44,6 @@ class DeleteService(Event):
             return
 
         customer_id = row['customer_id']
-
-        operation_error = {'operation': 'deleteService', 'result': 'failure', 'customer-key': customer_id}
 
         self.dbman.query('SELECT vn_left_id, vn_right_id FROM network_service ns, vnf, vn_group vn WHERE '
                          'ns.ntw_service_id=? and ns.ntw_service_id=vnf.ntw_service_id and vn.vnf_id=vnf.vnf_id',

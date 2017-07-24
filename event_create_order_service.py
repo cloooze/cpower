@@ -32,9 +32,13 @@ class CreateOrderService(Event):
                 self.logger.info('Received a request not handled by custom workflow. Skipping execution')
                 return
 
-            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
+            nso_util.notify_nso('createService', nso_util.get_delete_vnf_data_response('failed', customer_id, ))
 
     def execute(self):
+        if self.order_status == 'ERR':
+            self.logger.info('Order failed, notifying NSO.')
+            return 'FAILURE'
+
         # Getting customer order params from getOrder response
         custom_order_params = dict()
         try:
@@ -58,8 +62,8 @@ class CreateOrderService(Event):
         empty_custom_order_param = get_empty_param(customer_id=customer_id, rt_left=rt_left, rt_right=rt_right,
                                                    vnf_list=vnf_list)
 
-        if empty_custom_order_param is not None or self.order_status == 'ERR':
-            self.logger.error("Create Service in ERR or missing custom order parameters.")
+        if empty_custom_order_param is not None:
+            self.logger.error("Create Service order is missing mandatory custom order parameters.")
             nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
             return 'FAILURE'
 
@@ -109,7 +113,7 @@ class CreateOrderService(Event):
 
             # Saving temporary VNFs into DB
             self.logger.info('Saving temporary VNF [%s] into database' % vnf_type)
-            row = (customer_id + vnf_type + '_TMP', service_id, '', vnf_type, position, 'NO', 'CREATE', 'PENDING')
+            row = (customer_id + vnf_type + '_' + get_temp_id(), service_id, '', vnf_type, position, 'NO', 'CREATE', 'PENDING')
             self.dbman.save_vnf(row)
             self.dbman.commit()
 

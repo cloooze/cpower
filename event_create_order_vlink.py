@@ -23,6 +23,16 @@ class CreateOrderVlink(Event):
         self.source_api = source_api
 
     def notify(self):
+        if self.order_status == 'ERR':
+            try:
+                custom_order_params = self.order_json['data']['order']['customOrderParams']
+                customer_id = get_custom_order_param('customer_id', custom_order_params)
+            except KeyError:
+                self.logger.info('Received a request not handled by custom workflow. Skipping execution')
+                return
+
+            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
+
         create_vlink = get_order_items('createVLink', self.order_json, 1)
 
         service_id = create_vlink['service']['id']
@@ -82,7 +92,6 @@ class CreateOrderVlink(Event):
             # do not notify something still ongoing (shouldn't happen here)
             pass
 
-
     def execute(self):
         create_vlink = get_order_items('createVLink', self.order_json, 1)
 
@@ -100,9 +109,12 @@ class CreateOrderVlink(Event):
                 original_vnf_type_list = l.split(',')
 
             # Getting current VNFs
-            current_vnf_type_list = self.dbman.query('SELECT vnf_type,vnf_id '
+            current_vnf_type_list = self.dbman.query('SELECT vnf_type, vnf_id '
                                                      'FROM vnf '
                                                      'WHERE ntw_service_id = ?', (service_id,)).fetchall()
+
+            # marking the VNF operation as ROLLBACK
+            self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status WHERE ntw_service_id = ?', ('ROLLBACK', 'PENDING', service_id))
 
             # Determining VNFs to delete/to keep
             vnf_to_delete = list()
