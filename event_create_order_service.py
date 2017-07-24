@@ -24,7 +24,15 @@ class CreateOrderService(Event):
         self.source_api = source_api
 
     def notify(self):
-        self.logger.info('Nothing to notify to NSO.')
+        if self.order_status == 'ERR':
+            try:
+                custom_order_params = self.order_json['data']['order']['customOrderParams']
+                customer_id = get_custom_order_param('customer_id', custom_order_params)
+            except KeyError:
+                self.logger.info('Received a request not handled by custom workflow. Skipping execution')
+                return
+
+            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
 
     def execute(self):
         # Getting customer order params from getOrder response
@@ -35,10 +43,6 @@ class CreateOrderService(Event):
             # The flow ends up here when has been sent a creteVlink as createOrder from the customworkflow since
             # the order doesn't have any customOrderParams
             pass
-
-        if self.order_status == 'ERR':
-            self.logger.error(self.order_json['data']['order']['orderMsgs'])
-            # TODO notify NSO (error)
 
         # CREATE SERVICE submitted by NSO
         create_service = get_order_items('createService', self.order_json, 1)

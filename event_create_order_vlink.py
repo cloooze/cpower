@@ -43,15 +43,17 @@ class CreateOrderVlink(Event):
                                                  'WHERE vnf.ntw_service_id = ? '
                                                  'AND vnf.vnf_id = vm.vnf_id '
                                                  'AND vm.vm_id = vmvnic.VM_ID '
-                                                 'AND vnf.VNF_POSITION = (SELECT MIN(vnf.VNF_POSITION) FROM vnf WHERE vmvnic.VM_VNIC_NAME LIKE ?)',
-                                                 (service_id, '%left')).fetchone()['vm_vnic_ip']
+                                                 'AND vnf.VNF_POSITION = (SELECT MIN(vnf.VNF_POSITION) FROM vnf WHERE ntw_service_id = ?)'
+                                                 'WHERE vmvnic.VM_VNIC_NAME LIKE ?)',
+                                                 (service_id, service_id, '%left')).fetchone()['vm_vnic_ip']
 
                 chain_right_ip = self.dbman.query('SELECT vmvnic.vm_vnic_ip FROM vmvnic, vnf, vm '
                                                  'WHERE vnf.ntw_service_id = ? '
                                                  'AND vnf.vnf_id = vm.vnf_id '
                                                  'AND vm.vm_id = vmvnic.VM_ID '
-                                                 'AND vnf.VNF_POSITION = (SELECT MAX(vnf.VNF_POSITION) FROM vnf WHERE vmvnic.VM_VNIC_NAME LIKE ?)',
-                                                 (service_id, '%right')).fetchone()['vm_vnic_ip']
+                                                 'AND vnf.VNF_POSITION = (SELECT MAX(vnf.VNF_POSITION) FROM vnf WHERE ntw_service_id = ?) '
+                                                  'WHERE vmvnic.VM_VNIC_NAME LIKE ?)',
+                                                 (service_id, service_id, '%right')).fetchone()['vm_vnic_ip']
 
                 nso_vnf_list = list()
                 for vnf_id_type in vnf_id_type_list:
@@ -77,9 +79,8 @@ class CreateOrderVlink(Event):
                 # TODO notify error
                 self.logger.error('MOCK notify error')
         else:
-            # do not notify something still ongoing (shouldn happen here)
+            # do not notify something still ongoing (shouldn't happen here)
             pass
-
 
 
     def execute(self):
@@ -150,40 +151,7 @@ class CreateOrderVlink(Event):
                              'SET vlink_id = ?, vlink_name = ?, ntw_policy = ?  '
                              'WHERE ntw_service_id = ?', (vlink_id, vlink_name, ','.join(policy_rule), service_id))
 
+            #TODO update network service STATUS
+
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
             self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
-
-
-        ''' moved to cpower.py
-                    self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
-                    customer_id = self.dbman.fetchone()['customer_id']
-        
-                    self.dbman.query('SELECT vnf_id, vnf_type, vnf_position FROM vnf WHERE vnf.ntw_service_id=?', (service_id,))
-                    vnfs = self.dbman.fetchall()
-                    nso_vnfs = list()
-        
-                    for vnf in vnfs:
-                        vnf_id = vnf['vnf_id']
-                        vnf_name = vnf['vnf_type']
-                        vnf_position = vnf['vnf_position']
-        
-                        self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip FROM vm, vmvnic WHERE vm.vnf_id=? AND vm.vm_id = vmvnic.vm_id', (vnf_id,))
-                        vm_vnics = self.dbman.fetchall()
-                        for vm_vnic in vm_vnics:
-                            if 'left' in vm_vnic['vm_vnic_name']:
-                                left_ip = vm_vnic['vm_vnic_ip']
-                            elif 'right' in vm_vnic['vm_vnic_name']:
-                                right_ip = vm_vnic['vm_vnic_ip']
-                            else:
-                                mgmt_ip = vm_vnic['vm_vnic_ip']
-        
-                        nso_vnf = {'operation': 'create', 'vnf-id': vnf_id, 'vnf-name': vnf_name, 'mgmt-ip': mgmt_ip, 'cust-ip': left_ip, 'ntw-ip': right_ip}
-                        nso_vnfs.append(nso_vnf)
-        
-                        if vnf_position == 1:
-                            chain_left_ip = left_ip
-                        if vnf_position == len(vnfs):
-                            chain_right_ip = right_ip
-        
-                    nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, chain_left_ip, chain_right_ip, nso_vnfs))
-        '''

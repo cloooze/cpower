@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 
 import ecm_util as ecm_util
+import nso_util as nso_util
 import config as c
 from event import Event
 from utils import *
 from ecm_exception import *
-
-INTERNAL_ERROR = '100'
-REQUEST_ERROR = '200'
-NETWORK_ERROR = '300'
 
 
 class CreateOrder(Event):
@@ -21,7 +18,15 @@ class CreateOrder(Event):
         self.source_api = source_api
 
     def notify(self):
-        pass
+        if self.order_status == 'ERR':
+            try:
+                custom_order_params = self.order_json['data']['order']['customOrderParams']
+                customer_id = get_custom_order_param('customer_id', custom_order_params)
+            except KeyError:
+                self.logger.info('Received a request not handled by custom workflow. Skipping execution')
+                return
+
+            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
 
     def execute(self):
         # Getting customer order params from getOrder response
@@ -32,10 +37,6 @@ class CreateOrder(Event):
             # The flow ends up here when has been sent a creteVlink as createOrder from the customworkflow since
             # the order doesn't have any customOrderParams
             pass
-
-        if self.order_status == 'ERR':
-            self.logger.error(self.order_json['data']['order']['orderMsgs'])
-            # TODO notify NSO (error)
 
         if get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':
             vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
@@ -62,8 +63,10 @@ class CreateOrder(Event):
                 self.logger.info('Received an order not handled by the Custom Workflow. Skipping execution...')
                 return
 
+            # Create order error, updating vnf table from database
             if self.order_status == 'ERR':
-                # TODO notify NSO
+                self.logger.info('Order failed, updating VNF_STATUS column in VNF table.')
+                self.dbman.query('UPDATE vnf SET vnf_status = ? WHERE ntw_service_id = ?', ('ERROR', service_id))
                 return 'FAILURE'
 
             # Saving VN_GROUP first
@@ -104,16 +107,8 @@ class CreateOrder(Event):
             # Saving the remainder
             create_vnfs = get_order_items('createVapp', self.order_json)
             vnf_type_list = list()
-            position = 1
-            # Getting last position number
-            self.dbman.query('SELECT MAX(vnf_position) as vnf_position FROM vnf WHERE ntw_service_id = ?', (service_id,))
-            res = self.dbman.fetchone()['vnf_position']
-            if res is not None:
-                position = res
-
 
             for vnf in create_vnfs:
-                position += 1
                 vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
                 vnf_type_list.append(vnf_type)
 
