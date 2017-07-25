@@ -50,7 +50,7 @@ class ModifyService(Event):
         target_vnf_type_list = get_custom_input_param('vnf_list', modify_service_cip).split(',')
 
         # Getting current vnf_list from database
-        self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ?', (service_id, ))
+        self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ? AND vnf_operation = ? AND vnf_status = ?', (service_id, 'CREATE', 'COMPLETE' ))
         res = self.dbman.fetchall()
 
         curr_vnf_type_list = list(vnf_type['vnf_type'] for vnf_type in res)

@@ -20,19 +20,16 @@ class DeleteVnf(Event):
         self.source_api = source_api
 
     def notify(self):
-        vnf_id = get_order_items('deleteVapp', self.order_json, 1)['id']
+        vnf_id = self.event_params['vnf_id']
 
-        res = self.dbman.query('SELECT * FROM vnf WHERE vnf_id = ? AND vnf_operation = ?', (vnf_id, 'ROLLBACK')).fetchall()
+        res = self.dbman.query('SELECT * FROM vnf WHERE vnf_id = ? AND vnf_operation = ?', (vnf_id, 'ROLLBACK')).fetchone()
 
         if res is None:
-            res = self.dbman.query('SELECT network_service.customer_id, network_service.ntw_service_id, vnf.vnf_type '
-                                   'FROM vnf, network_service '
-                                   'WHERE vnf.vnf_id = ? '
-                                   'AND vnf.ntw_service_id = network_service.ntw_service_id', (vnf_id,)).fetchone()
+            res = self.dbman.query('SELECT customer_id FROM vnf WHERE vnf_id = ?', (vnf_id,)).fetchone()
 
             customer_id = res['customer_id']
-            service_id = res['ntw_service_id']
-            vnf_name = res['vnf_type']
+            service_id = self.event_params['service_id']
+            vnf_name = self.event_params['vnf_type']
 
             if self.order_status == 'ERR':
                 nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('failed', customer_id))
@@ -40,12 +37,13 @@ class DeleteVnf(Event):
                 nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('success', customer_id, service_id, vnf_id, vnf_name))
 
     def execute(self):
-        if self.order_status == 'ERR':
-            return 'FAILURE'
-
         delete_vnf = get_order_items('deleteVapp', self.order_json, 1)
 
         vnf_id = delete_vnf['id']
+
+        if self.order_status == 'ERR':
+            self.dbman.query('UPDATE vnf SET vnf_status = ? WHERE vnf_id = ?', ('ERROR', vnf_id))
+            return 'FAILURE'
 
         self.dbman.query('SELECT ns.ntw_policy,vnf.vnf_type, vnf.ntw_service_id '
                          'FROM network_service ns, vnf '
@@ -62,6 +60,8 @@ class DeleteVnf(Event):
         ntw_policy = res['ntw_policy']
         vnf_type = res['vnf_type']
         service_id = res['ntw_service_id']
+
+        self.event_params = {'vnf_id': vnf_id, 'vnf_type': vnf_type, 'service_id': service_id}
 
         ntw_policy = list(vnf for vnf in ntw_policy.split(',') if vnf_type not in vnf)
 

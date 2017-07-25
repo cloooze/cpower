@@ -17,3 +17,6 @@ class Event(object):
     def notify(self):
         raise NotImplementedError()
 
+    def rollback(self):
+        raise NotImplementedError()
+

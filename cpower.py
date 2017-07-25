@@ -84,6 +84,8 @@ def main():
 
         event.notify()
 
+        event.rollback()
+
         logger.info('End of script execution: [%s]' % ('SUCCESS' if not result else 'FAILURE'))
         sys.exit(0 if not result else 1)
     except Exception:  # fix this
