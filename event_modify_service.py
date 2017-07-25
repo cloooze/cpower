@@ -122,7 +122,9 @@ class ModifyService(Event):
 
             if res is not None:
                 for vnf in res:
-                    ecm_util.invoke_ecm_api(vnf['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
+                    vnf_id = vnf['vnf_id']
+                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_id = ?', ('DELETE', 'PENDING', vnf_id))
+                    ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
 
 
 

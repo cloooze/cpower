@@ -128,7 +128,6 @@ class DBManager(object):
 
     #VMVNIC table
 
-
     def save_vmvnic(self, row, commit=True):
         q = 'INSERT INTO vmvnic VALUES (?, ?, ?, ?, ?)'
         self.query(q, row, commit)

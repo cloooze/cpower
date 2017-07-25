@@ -20,7 +20,7 @@ class DeleteVnf(Event):
         self.source_api = source_api
 
     def notify(self):
-        vnf_id = get_order_items('deleteVapp', self.order_json, 1).fetchone()['id']
+        vnf_id = get_order_items('deleteVapp', self.order_json, 1)['id']
 
         res = self.dbman.query('SELECT * FROM vnf WHERE vnf_id = ? AND vnf_operation = ?', (vnf_id, 'ROLLBACK')).fetchall()
 
@@ -63,12 +63,12 @@ class DeleteVnf(Event):
         vnf_type = res['vnf_type']
         service_id = res['ntw_service_id']
 
-        ntw_policy = list(vnf for vnf in ntw_policy if vnf_type not in vnf)
+        ntw_policy = list(vnf for vnf in ntw_policy.split(',') if vnf_type not in vnf)
 
         self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', tuple(ntw_policy) + tuple([service_id]))
         self.logger.info('Updating NTW_POLICY %s from database.' % ntw_policy)
 
-        self.dbman.query('UPDATE vnf SET vnf.vnf_status = ? WHERE vnf_id = ?', ('COMPLETE', vnf_id))
+        self.dbman.query('UPDATE vnf SET vnf_status = ? WHERE vnf_id = ?', ('COMPLETE', vnf_id))
         self.logger.info('Updating VNF_OPERATION column from VNF table')
 
         self.dbman.commit()
