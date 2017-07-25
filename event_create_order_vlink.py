@@ -41,56 +41,46 @@ class CreateOrderVlink(Event):
         res = self.dbman.fetchone()
         customer_id = res['customer_id']
 
-        self.dbman.query('SELECT * FROM vnf WHERE ntw_service_id = ?', (service_id, ))
+        self.dbman.query('SELECT * FROM vnf WHERE ntw_service_id = ? AND vnf_operation = ? AND vnf_status = ?', (service_id, 'CREATE', 'COMPLETE'))
         res = self.dbman.fetchall()
 
-        vnf_status_list = (vnf['vnf_status'] for vnf in res)
         vnf_id_type_list = (vnf['vnf_id'] + '_' + vnf['vnf_type'] for vnf in res)
 
-        if 'PENDING' not in vnf_status_list:
-            if 'ERROR' not in vnf_status_list:
-                chain_left_ip = self.dbman.query('SELECT vmvnic.vm_vnic_ip FROM vmvnic, vnf, vm '
-                                                 'WHERE vnf.ntw_service_id = ? '
-                                                 'AND vnf.vnf_id = vm.vnf_id '
-                                                 'AND vm.vm_id = vmvnic.VM_ID '
-                                                 'AND vnf.VNF_POSITION = (SELECT MIN(vnf.VNF_POSITION) FROM vnf WHERE ntw_service_id = ?)'
-                                                 'WHERE vmvnic.VM_VNIC_NAME LIKE ?)',
-                                                 (service_id, service_id, '%left')).fetchone()['vm_vnic_ip']
+        chain_left_ip = self.dbman.query(
+            'SELECT vmvnic.vm_vnic_ip FROM vmvnic, vnf, vm WHERE vnf.ntw_service_id = ? AND vnf.vnf_id = '
+            'vm.vnf_id AND vm.vm_id = vmvnic.VM_ID AND vnf.VNF_POSITION = (SELECT MIN(vnf.VNF_POSITION) FROM '
+            'vnf WHERE ntw_service_id = ?) AND vmvnic.VM_VNIC_NAME LIKE ?',
+            (service_id, service_id, '%left')).fetchone()['vm_vnic_ip']
 
-                chain_right_ip = self.dbman.query('SELECT vmvnic.vm_vnic_ip FROM vmvnic, vnf, vm '
-                                                 'WHERE vnf.ntw_service_id = ? '
-                                                 'AND vnf.vnf_id = vm.vnf_id '
-                                                 'AND vm.vm_id = vmvnic.VM_ID '
-                                                 'AND vnf.VNF_POSITION = (SELECT MAX(vnf.VNF_POSITION) FROM vnf WHERE ntw_service_id = ?) '
-                                                  'WHERE vmvnic.VM_VNIC_NAME LIKE ?)',
-                                                 (service_id, service_id, '%right')).fetchone()['vm_vnic_ip']
+        chain_right_ip = self.dbman.query(
+            'SELECT vmvnic.vm_vnic_ip FROM vmvnic, vnf, vm WHERE vnf.ntw_service_id = ? AND vnf.vnf_id = '
+            'vm.vnf_id AND vm.vm_id = vmvnic.VM_ID AND vnf.VNF_POSITION = (SELECT MAX(vnf.VNF_POSITION) FROM '
+            'vnf WHERE ntw_service_id = ?) AND vmvnic.VM_VNIC_NAME LIKE ?',
+            (service_id, service_id, '%right')).fetchone()['vm_vnic_ip']
 
-                nso_vnf_list = list()
-                for vnf_id_type in vnf_id_type_list:
-                    res = self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip FROM vm, vmvnic WHERE vm.vnf_id = ? AND vm.vm_id = vmvnic.vm_id', (vnf_id_type.split('_')[0], )).fetchall()
-                    for v in res:
-                        if 'left' in v['vm_vnic_name']:
-                            left_ip = v['vm_vnic_ip']
-                        elif 'right' in v['vm_vnic_name']:
-                            right_ip = v['vm_vnic_ip']
-                        elif 'mgmt' in v['vm_vnic_name']:
-                            mgmt_ip = v['vm_vnic_ip']
+        nso_vnf_list = list()
 
-                    nso_vnf_list.append(
-                        {'operation': 'create',
-                         'vnf-id': vnf_id_type.split('_')[0],
-                         'vnf-name': vnf_id_type.split('_')[1],
-                         'mgmt-ip': mgmt_ip,
-                         'left-ip': left_ip,
-                         'right-ip': right_ip})
+        for vnf_id_type in vnf_id_type_list:
+            res = self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip FROM vm, vmvnic WHERE vm.vnf_id = ? AND vm.vm_id = vmvnic.vm_id', (vnf_id_type.split('_')[0], )).fetchall()
+            for v in res:
+                if 'left' in v['vm_vnic_name']:
+                    left_ip = v['vm_vnic_ip']
+                elif 'right' in v['vm_vnic_name']:
+                    right_ip = v['vm_vnic_ip']
+                elif 'mgmt' in v['vm_vnic_name']:
+                    mgmt_ip = v['vm_vnic_ip']
 
-                nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, chain_left_ip, chain_right_ip, nso_vnf_list))
-            else:
-                # TODO notify error
-                self.logger.error('MOCK notify error')
-        else:
-            # do not notify something still ongoing (shouldn't happen here)
-            pass
+            nso_vnf_list.append(
+                {'operation': 'create',
+                 'vnf-id': vnf_id_type.split('_')[0],
+                 'vnf-name': vnf_id_type.split('_')[1],
+                 'mgmt-ip': mgmt_ip,
+                 'left-ip': left_ip,
+                 'right-ip': right_ip})
+
+        nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, chain_left_ip, chain_right_ip, nso_vnf_list))
+
+        self.dbman.notify_nso(service_id)
 
     def execute(self):
         create_vlink = get_order_items('createVLink', self.order_json, 1)

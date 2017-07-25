@@ -19,29 +19,23 @@ class CreateOrder(Event):
 
     def notify(self):
         if self.order_status == 'ERR':
-            try:
-                custom_order_params = self.order_json['data']['order']['customOrderParams']
-                customer_id = get_custom_order_param('customer_id', custom_order_params)
-            except KeyError:
-                self.logger.info('Received a request not handled by custom workflow. Skipping execution')
-                return
-
+            customer_id = self.event_params['customer_id']
             nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
 
     def execute(self):
         # Getting customer order params from getOrder response
-        custom_order_params = dict()
         try:
-            custom_order_params = self.order_json['data']['order']['customOrderParams']  # check if it throws exception
+            custom_order_params = self.order_json['data']['order']['customOrderParams']
+            customer_id = get_custom_order_param('customer_id', custom_order_params)
+            service_id = get_custom_order_param('service_id', custom_order_params)
         except KeyError:
-            # The flow ends up here when has been sent a creteVlink as createOrder from the customworkflow since
-            # the order doesn't have any customOrderParams
-            pass
+            self.logger.info('Received an order not handled by the Custom Workflow. Skipping execution...')
+            return
+
+        self.event_params = {'service_id': service_id, 'customer_id': customer_id}
 
         if get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':
             vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
-            customer_id = get_custom_order_param('customer_id', custom_order_params)
-            service_id = get_custom_order_param('service_id', custom_order_params)
 
             placeholders = ','.join('?' for vnf in vnf_type_list_to_delete)
 
@@ -56,12 +50,6 @@ class CreateOrder(Event):
                 ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
         else:
             # Processing post-createOrder (sub by CW)
-            customer_id = get_custom_order_param('customer_id', custom_order_params)
-            service_id = get_custom_order_param('service_id', custom_order_params)
-
-            if customer_id is None or service_id is None:
-                self.logger.info('Received an order not handled by the Custom Workflow. Skipping execution...')
-                return
 
             # Create order error, updating vnf table from database
             if self.order_status == 'ERR':
@@ -237,9 +225,5 @@ class CreateOrder(Event):
 
                 vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
 
-                try:
-                    ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
-                except ECMConnectionError as e:
-                    self.logger.exception(e)
-                    # TODO notify NSO
-                    return 'FAILURE'
+                ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+

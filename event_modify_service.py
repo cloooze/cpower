@@ -105,19 +105,15 @@ class ModifyService(Event):
                     "customOrderParams": [
                         get_cop('service_id', service_id),
                         get_cop('customer_id', customer_id),
-                        (get_cop('next_action','delete_vnf') if len(delete_vnf) > 0 else {}),
-                        (get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)) if len(delete_vnf) > 0 else {})],
+                        (get_cop('next_action','delete_vnf') if len(delete_vnf) > 0 else get_empty_cop()),
+                        (get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)) if len(delete_vnf) > 0 else get_empty_cop())],
                     "orderItems": order_items
                 }
             )
 
-            try:
-                ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
-            except (ECMReqStatusError, ECMConnectionError) as e:
-                self.logger.exception(e)
-                # TODO notify NSO
-                return 'FAILURE'
-        elif len(delete_vnf) > 0:
+            ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
+
+        elif len(delete_vnf) > 0:  # Doing the delete here ONLY if there is nothing to add
             placeholders = ','.join('?' for vnf in delete_vnf)
 
             self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type IN (%s)' % placeholders,

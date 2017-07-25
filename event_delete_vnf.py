@@ -59,17 +59,17 @@ class DeleteVnf(Event):
             return
 
         # Doing this because ntw_policy column contains comma separated values as --> <cust_id>-<vnf_type>
-        ntw_policy_list = list(vnf.split('-')[1] for vnf in res['ntw_policy'].split(','))
+        ntw_policy = res['ntw_policy']
         vnf_type = res['vnf_type']
         service_id = res['ntw_service_id']
 
-        ntw_policy_list.remove(vnf_type)
-        self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', tuple(','.join(ntw_policy_list)) + tuple([service_id]))
-        self.logger.info('Updating NTW_POLICY %s from database.' % ','.join(ntw_policy_list))
+        ntw_policy = list(vnf for vnf in ntw_policy if vnf_type not in vnf)
 
-        self.logger.info('Updating VNF_OPERATION column from VNF table')
+        self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', tuple(ntw_policy) + tuple([service_id]))
+        self.logger.info('Updating NTW_POLICY %s from database.' % ntw_policy)
 
         self.dbman.query('UPDATE vnf SET vnf.vnf_status = ? WHERE vnf_id = ?', ('COMPLETE', vnf_id))
+        self.logger.info('Updating VNF_OPERATION column from VNF table')
 
         self.dbman.commit()
 

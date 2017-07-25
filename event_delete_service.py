@@ -22,12 +22,15 @@ class DeleteService(Event):
         self.source_api = source_api
 
     def notify(self):
-        # TODO notify nso if status=ERR
-        pass
+        service_id = self.event_params['service_id']
+        customer_id = self.event_params['customer_id']
+
+        if self.order_status == 'ERR':
+            nso_util.notify_nso('deleteService', nso_util.get_delete_service_data_response('failed', customer_id, service_id))
+        else:
+            nso_util.notify_nso('deleteService', nso_util.get_delete_service_data_response('success', customer_id, service_id))
 
     def execute(self):
-        workflow_error = {'operation': 'genericError', 'customer-key': ''}
-
         if self.order_status == 'ERR':
             return 'FAILURE'
 
@@ -45,6 +48,8 @@ class DeleteService(Event):
 
         customer_id = row['customer_id']
 
+        self.event_params = {'customer_id': customer_id, 'service_id': service_id}
+
         self.dbman.query('SELECT vn_left_id, vn_right_id FROM network_service ns, vnf, vn_group vn WHERE '
                          'ns.ntw_service_id=? and ns.ntw_service_id=vnf.ntw_service_id and vn.vnf_id=vnf.vnf_id',
                          (service_id,))
@@ -52,13 +57,5 @@ class DeleteService(Event):
 
         vn_left_id, vn_right_id = row['vn_left_id'], row['vn_right_id']
 
-        try:
-            ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE')
-            ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
-        except (ECMReqStatusError, ECMConnectionError) as e:
-            self.logger.exception(e)
-            nso_util.notify_nso(workflow_error)
-            return 'FAILURE'
-
-        nso_util.notify_nso('deleteService',
-                            nso_util.get_delete_service_data_response('success', customer_id, service_id))
+        ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE')
+        ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')

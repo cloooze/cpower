@@ -150,3 +150,6 @@ class DBManager(object):
     def get_order(self, order_id):
         q = 'SELECT * FROM orders WHERE order_id=?'
         self.query(q, (order_id, ))
+
+    def notify_nso(self, service_id, commit=True):
+        self.query('UPDATE network_service SET notify_nso = ? WHERE ntw_service_id = ?', ('YES', service_id), commit)

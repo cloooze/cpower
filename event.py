@@ -9,6 +9,7 @@ class Event(object):
     def __init__(self):
         self.dbman = DBManager('cpower.db')
         self.logger = logging.getLogger('cpower')
+        self.event_params = {}
 
     def execute(self):
         raise NotImplementedError()
