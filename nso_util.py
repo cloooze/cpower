@@ -145,7 +145,7 @@ def notify_nso(operation, data):
         elif operation == 'deleteVnf':
             nso_endpoint = c.nso_server_address + c.nso_service_uri_delete_vnf
 
-        logger.info("Calling NSO API - POST %s" % nso_endpoint)
+        logger.info("Invoking NSO API POST %s - POST" % nso_endpoint)
         logger.debug("Sending data: %s" % data)
 
         h = {'Content-Type': 'application/vnd.yang.data+json'}

@@ -29,6 +29,7 @@ class DeleteVnf(Event):
                                    'FROM vnf, network_service '
                                    'WHERE vnf.vnf_id = ? '
                                    'AND vnf.ntw_service_id = network_service.ntw_service_id', (vnf_id,)).fetchone()
+
             customer_id = res['customer_id']
             service_id = res['ntw_service_id']
             vnf_name = res['vnf_type']
@@ -37,9 +38,6 @@ class DeleteVnf(Event):
                 nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('failed', customer_id))
             else:
                 nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('success', customer_id, service_id, vnf_id, vnf_name))
-        else:
-            # TODO put status = complete for ROLLBACK
-            pass
 
     def execute(self):
         if self.order_status == 'ERR':
