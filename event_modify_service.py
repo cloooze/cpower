@@ -96,6 +96,11 @@ class ModifyService(Event):
                 order_items.append(get_create_vmvnic(str(i + 4), customer_id + '-' + vnf_type + '-mgmt', '', str(i + 1), 'desc', c.mgmt_vn_id))
                 i += 5
 
+                # Saving temporary VNFs into DB
+                self.logger.info('Saving temporary VNF [%s] into database' % vnf_type)
+                row = (customer_id + vnf_type + '_' + get_temp_id(), service_id, '', vnf_type, target_vnf_type_list.index(vnf_type) + 1, 'NO', 'CREATE', 'PENDING')
+                self.dbman.save_vnf(row)
+
             order = dict(
                 {
                     "tenantName": c.ecm_tenant_name,

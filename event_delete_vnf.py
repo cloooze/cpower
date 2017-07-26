@@ -25,7 +25,7 @@ class DeleteVnf(Event):
         res = self.dbman.query('SELECT * FROM vnf WHERE vnf_id = ? AND vnf_operation = ?', (vnf_id, 'ROLLBACK')).fetchone()
 
         if res is None:
-            res = self.dbman.query('SELECT customer_id FROM vnf WHERE vnf_id = ?', (vnf_id,)).fetchone()
+            res = self.dbman.query('SELECT network_service.customer_id FROM network_service,vnf WHERE vnf_id = ? AND network_service.ntw_service_id = vnf.ntw_service_id', (vnf_id,)).fetchone()
 
             customer_id = res['customer_id']
             service_id = self.event_params['service_id']

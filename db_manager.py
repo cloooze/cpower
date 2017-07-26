@@ -39,11 +39,11 @@ class DBManager(object):
 
     def query(self, query, t=None, commit=True):
         if t is None:
-            self.cur.execute(query, )
             self.logger.info(query)
+            self.cur.execute(query, )
         else:
-            self.cur.execute(query, t)
             self.logger.info(query.replace('?', '%s') % t)
+            self.cur.execute(query, t)
 
         if commit is True:
             self.conn.commit()

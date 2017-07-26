@@ -32,11 +32,10 @@ class CreateOrderService(Event):
                 self.logger.info('Received a request not handled by custom workflow. Skipping execution')
                 return
 
-            nso_util.notify_nso('createService', nso_util.get_delete_vnf_data_response('failed', customer_id, ))
+            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
 
     def execute(self):
         if self.order_status == 'ERR':
-            self.logger.info('Order failed, notifying NSO.')
             return 'FAILURE'
 
         # Getting customer order params from getOrder response
