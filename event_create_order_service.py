@@ -131,3 +131,6 @@ class CreateOrderService(Event):
         )
 
         ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
+
+    def rollback(self):
+        pass

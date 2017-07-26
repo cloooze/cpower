@@ -54,10 +54,7 @@ class ModifyService(Event):
         res = self.dbman.fetchall()
 
         curr_vnf_type_list = list(vnf_type['vnf_type'] for vnf_type in res)
-        #curr_vnf_type_list = list()
-        #for vnf_type in res:
-        #    curr_vnf_type_list.append(vnf_type['vnf_type'])
-
+       
         # Determining vnf to delete and to add
         add_vnf = list()
         delete_vnf = list()
@@ -104,12 +101,15 @@ class ModifyService(Event):
                     "tenantName": c.ecm_tenant_name,
                     "customOrderParams": [
                         get_cop('service_id', service_id),
-                        get_cop('customer_id', customer_id),
-                        (get_cop('next_action','delete_vnf') if len(delete_vnf) > 0 else get_empty_cop()),
-                        (get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)) if len(delete_vnf) > 0 else get_empty_cop())],
+                        get_cop('customer_id', customer_id)
+                    ],
                     "orderItems": order_items
                 }
             )
+
+            if len(delete_vnf) > 0:
+                order['customOrderParams'].append(get_cop('next_action','delete_vnf'))
+                order['customOrderParams'].append(get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)))
 
             ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
 
@@ -125,6 +125,9 @@ class ModifyService(Event):
                     vnf_id = vnf['vnf_id']
                     self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_id = ?', ('DELETE', 'PENDING', vnf_id))
                     ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
+
+    def rollback(self):
+        pass
 
 
 

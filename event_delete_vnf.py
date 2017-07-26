@@ -73,3 +73,6 @@ class DeleteVnf(Event):
 
         self.dbman.commit()
 
+    def rollback(self):
+        pass
+

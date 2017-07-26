@@ -102,6 +102,10 @@ def get_empty_cop():
     return {"tag": "", "value": ""}
 
 
+def get_no_cop():
+    return
+
+
 def get_create_vapp(order_item_id, vapp_name, vdc_id, vim_zone_name, service_id):
     j = dict(
         {

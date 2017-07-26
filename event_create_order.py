@@ -227,3 +227,5 @@ class CreateOrder(Event):
 
                 ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
 
+    def rollback(self):
+        pass

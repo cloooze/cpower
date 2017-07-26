@@ -43,3 +43,6 @@ class DeleteVn(Event):
             self.dbman.delete_vn_group(vn_group_id)
 
         # TODO notify NSO success with operation DELETE_SERVICE
+
+    def rollback(self):
+        pass

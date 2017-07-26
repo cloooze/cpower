@@ -31,13 +31,8 @@ class DeleteService(Event):
             nso_util.notify_nso('deleteService', nso_util.get_delete_service_data_response('success', customer_id, service_id))
 
     def execute(self):
-        if self.order_status == 'ERR':
-            return 'FAILURE'
-
         delete_service = get_order_items('deleteService', self.order_json, 1)
         service_id = delete_service['id']
-
-        self.logger.info('Network service [%s] succesfully deleted. Deleting associated VNs...' % service_id)
 
         self.dbman.query('SELECT customer_id FROM network_service ns WHERE ns.ntw_service_id=?', (service_id,))
         row = self.dbman.fetchone()
@@ -50,12 +45,21 @@ class DeleteService(Event):
 
         self.event_params = {'customer_id': customer_id, 'service_id': service_id}
 
+        if self.order_status == 'ERR':
+            return 'FAILURE'
+
+        self.logger.info('Network service [%s] succesfully deleted. Deleting associated VNs.' % service_id)
+
         self.dbman.query('SELECT vn_left_id, vn_right_id FROM network_service ns, vnf, vn_group vn WHERE '
                          'ns.ntw_service_id=? and ns.ntw_service_id=vnf.ntw_service_id and vn.vnf_id=vnf.vnf_id',
                          (service_id,))
+
         row = self.dbman.fetchone()
 
         vn_left_id, vn_right_id = row['vn_left_id'], row['vn_right_id']
 
         ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE')
         ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
+
+    def rollback(self):
+        pass
