@@ -62,6 +62,7 @@ class CreateOrderService(Event):
                                                    vnf_list=vnf_list)
 
         if empty_custom_order_param is not None:
+            # Notifying here because order_status is COM
             self.logger.error("Create Service order is missing mandatory custom order parameters.")
             nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
             return 'FAILURE'

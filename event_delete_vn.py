@@ -22,18 +22,15 @@ class DeleteVn(Event):
         pass
 
     def execute(self):
-        workflow_error = {'operation': 'genericError', 'customer-key': ''}
-
         if self.order_status == 'ERR':
             self.logger.error(self.order_json['data']['order']['orderMsgs'])
-            nso_util.notify_nso(workflow_error)
             return 'FAILURE'
 
         delete_vn = self.get_order_items('deleteVn', self.order_json)[0]
 
         vn_id = delete_vn['id']
 
-        self.dbman.query('SELECT vn_group_id FROM vn_group vn WHERE vn.vn_left_id=? OR vn.vn_right_id=?', (vn_id,))
+        self.dbman.query('SELECT vn_group_id FROM vn_group WHERE vn_left_id=? OR vn.vn_right_id=?', (vn_id,))
         row = self.dbman.fetchone()
 
         if row is None:

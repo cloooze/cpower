@@ -96,8 +96,8 @@ class ModifyService(Event):
                 order_items.append(get_create_vmvnic(str(i + 4), customer_id + '-' + vnf_type + '-mgmt', '', str(i + 1), 'desc', c.mgmt_vn_id))
                 i += 5
 
-                # Saving temporary VNFs into DB
-                self.logger.info('Saving temporary VNF [%s] into database' % vnf_type)
+                # Saving temporary VNFs to ADD into DB
+                self.logger.info('Saving temporary VNF [%s] to ADD into database' % vnf_type)
                 row = (customer_id + vnf_type + '_' + get_temp_id(), service_id, '', vnf_type, target_vnf_type_list.index(vnf_type) + 1, 'NO', 'CREATE', 'PENDING')
                 self.dbman.save_vnf(row)
 
@@ -115,6 +115,10 @@ class ModifyService(Event):
             if len(delete_vnf) > 0:
                 order['customOrderParams'].append(get_cop('next_action','delete_vnf'))
                 order['customOrderParams'].append(get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)))
+                # Saving temporary VNFs to ADD into DB
+                for vnf_type in delete_vnf:
+                    self.logger.info('Saving temporary VNF [%s] to DELETE into database' % vnf_type)
+                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_type = ? AND vnf_operation = ? AND vnf_status = ? AND ntw_service_id = ?', ('DELETE', 'PENDING', vnf_type, 'CREATE', 'COMPLETE', service_id))
 
             ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
 

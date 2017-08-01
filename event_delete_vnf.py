@@ -63,6 +63,7 @@ class DeleteVnf(Event):
 
         self.event_params = {'vnf_id': vnf_id, 'vnf_type': vnf_type, 'service_id': service_id}
 
+        # TODO update ntw_policy into DB should be done after modifyService (com)
         ntw_policy = list(vnf for vnf in ntw_policy.split(',') if vnf_type not in vnf)
 
         self.dbman.query('UPDATE network_service SET ntw_policy = ? WHERE ntw_service_id = ?', tuple(ntw_policy) + tuple([service_id]))
@@ -72,6 +73,8 @@ class DeleteVnf(Event):
         self.logger.info('Updating VNF_OPERATION column from VNF table')
 
         self.dbman.commit()
+
+        # TODO modifyVlink (only if all VNFs of the ntw_service have status not PENDING
 
     def rollback(self):
         pass

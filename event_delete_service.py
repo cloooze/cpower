@@ -34,7 +34,7 @@ class DeleteService(Event):
         delete_service = get_order_items('deleteService', self.order_json, 1)
         service_id = delete_service['id']
 
-        self.dbman.query('SELECT customer_id FROM network_service ns WHERE ns.ntw_service_id=?', (service_id,))
+        self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id=?', (service_id,))
         row = self.dbman.fetchone()
 
         if not row:
@@ -50,16 +50,19 @@ class DeleteService(Event):
 
         self.logger.info('Network service [%s] succesfully deleted. Deleting associated VNs.' % service_id)
 
-        self.dbman.query('SELECT vn_left_id, vn_right_id FROM network_service ns, vnf, vn_group vn WHERE '
-                         'ns.ntw_service_id=? and ns.ntw_service_id=vnf.ntw_service_id and vn.vnf_id=vnf.vnf_id',
-                         (service_id,))
+        self.dbman.query('SELECT vn_left_id, vn_right_id FROM vnf, vn_group WHERE '
+                         'vnf.ntw_service_id=? and vnf.vn_group_id = vn_group.vn_group_id', (service_id,))
 
-        row = self.dbman.fetchone()
+        rows = self.dbman.fetchall()
 
-        vn_left_id, vn_right_id = row['vn_left_id'], row['vn_right_id']
+        for r in rows:
+            vn_left_id = r['vn_left_id']
+            vn_right_id = r['vn_right_id']
+            ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE')
+            ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
 
-        ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE')
-        ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
+        self.logger.info('Deleting Network Service %s from database.' % service_id)
+        self.dbman.delete_network_service(service_id)
 
     def rollback(self):
         pass

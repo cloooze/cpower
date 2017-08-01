@@ -37,195 +37,253 @@ class CreateOrder(Event):
         if get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':
             vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
 
-            placeholders = ','.join('?' for vnf in vnf_type_list_to_delete)
-
-            res = self.dbman.query('SELECT vnf_id '
-                                   'FROM vnf '
-                                   'WHERE ntw_service_id = ? '
-                                   'AND vnf_type IN (%s)' % placeholders, tuple([service_id]) + tuple(vnf_type_list_to_delete.split(','))).fetchall()
-
-            self.logger.info('Deleting VNFs: %s' % vnf_type_list_to_delete)
-
-            for row in res:
-                ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
-        else:
-            # Processing post-createOrder (sub by CW)
-
-            # Create order error, updating vnf table from database
             if self.order_status == 'ERR':
-                self.logger.info('Order failed, updating VNF_STATUS column in VNF table.')
-                self.dbman.query('UPDATE vnf SET vnf_status = ? WHERE ntw_service_id = ?', ('ERROR', service_id))
-                return 'FAILURE'
-
-            # Saving VN_GROUP first
-            create_vns = get_order_items('createVn', self.order_json)
-
-            # If create_vns is None it means that the order was related to the creation of an addition VNF (ADD)
-            if create_vns is not None:
-                ADD_VNF_SCENARIO = False
-                for vn in create_vns:
-                    if 'left' in vn['name']:
-                        vn_id_l = vn['id']
-                        vn_name_l = vn['name']
-                        r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
-                        resp = json.loads(r.text)
-                        vn_vimobject_id_l = resp['data']['vn']['vimObjectId']
-                    else:
-                        vn_id_r = vn['id']
-                        vn_name_r = vn['name']
-                        r = ecm_util.invoke_ecm_api(vn_id_r, c.ecm_service_api_vns, 'GET')
-                        resp = json.loads(r.text)
-                        vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
-
-                self.logger.info('Saving VN_GROUP info into database.')
-                vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
-                vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
-
+                self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE ntw_service_id = ? AND vnf_operation = ? AND vnf_status = ?', ('CREATE', 'COMPLETE', service_id, 'DELETE', 'PENDING'))
             else:
-                ADD_VNF_SCENARIO = True
-                res = self.dbman.query('SELECT vnf.vn_group_id, vn_group.vn_left_name, vn_group.vn_right_name '
-                                       'FROM vnf, vn_group '
-                                       'WHERE vnf.ntw_service_id = ? '
-                                       'AND vnf.vn_group_id = vn_group.vn_group_id',
-                                       (service_id,)).fetchone()
-                vn_group_id = res['vn_group_id']
-                vn_name_l = res['vn_left_name']
-                vn_name_r = res['vn_right_name']
+                placeholders = ','.join('?' for vnf in vnf_type_list_to_delete)
 
-            # Saving the remainder
-            create_vnfs = get_order_items('createVapp', self.order_json)
-            vnf_type_list = list()
+                res = self.dbman.query('SELECT vnf_id '
+                                       'FROM vnf '
+                                       'WHERE ntw_service_id = ? '
+                                       'AND vnf_type IN (%s)' % placeholders, tuple([service_id]) + tuple(vnf_type_list_to_delete.split(','))).fetchall()
 
-            for vnf in create_vnfs:
-                vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
-                vnf_type_list.append(vnf_type)
+                self.logger.info('Deleting VNFs: %s' % vnf_type_list_to_delete)
 
-                create_vms = get_order_items('createVm', self.order_json)
+                for row in res:
+                    ecm_util.invoke_ecm_api(row['vnf_id'], c.ecm_service_api_vapps, 'DELETE')
 
-                for vm in create_vms:
-                    if vm['vapp']['name'] == vnf_name:
-                        vm_id, vm_name = vm['id'], vm['name']
+        # Processing post-createOrder (sub by CW)
 
-                create_vmvnics = get_order_items('createVmVnic', self.order_json)
+        # Create order error, updating vnf table from database
+        if self.order_status == 'ERR':
+            self.logger.info('Order failed, updating VNF_STATUS column in VNF table.')
+            self.dbman.query('UPDATE vnf SET vnf_status = ? WHERE ntw_service_id = ? AND vnf_status = ?', ('ERROR', service_id, 'PENDING'))
+            return 'FAILURE'
 
-                for vmvnic in create_vmvnics:
-                    if vmvnic['vm']['name'] == vm_name:
-                        if 'left' in vmvnic['vn']['name']:
-                            vmvnic_id_l, vmvnic_name_l = vmvnic['id'], vmvnic['name']
-                            r = ecm_util.invoke_ecm_api(vmvnic_id_l, c.ecm_service_api_vmvnics, 'GET')
-                            resp = json.loads(r.text)
-                            vmvnic_ip_l = resp['data']['vmVnic']['internalIpAddress'][0]
-                            vmvnic_vimobjectid_l = resp['data']['vmVnic']['vimObjectId']
-                        elif 'right' in vmvnic['vn']['name']:
-                            vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
-                            r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
-                            resp = json.loads(r.text)
-                            vmvnic_ip_r = resp['data']['vmVnic']['internalIpAddress'][0]
-                            vmvnic_vimobjectid_r = resp['data']['vmVnic']['vimObjectId']
-                        elif 'management' in vmvnic['vn']['name']:
-                            vmvnic_id_mgmt, vmvnic_name_mgmt = vmvnic['id'], vmvnic['name']
-                            r = ecm_util.invoke_ecm_api(vmvnic_id_mgmt, c.ecm_service_api_vmvnics, 'GET')
-                            resp = json.loads(r.text)
-                            vmvnic_ip_mgmt = resp['data']['vmVnic']['internalIpAddress'][0]
-                            vmvnic_vimobjectid_mgmt = resp['data']['vmVnic']['vimObjectId']
+        # Saving VN_GROUP first
+        create_vns = get_order_items('createVn', self.order_json)
 
-                # Save VNF
-                self.logger.info('Saving VNF info into database.')
+        # If create_vns is None it means that the order was related to the creation of an addition VNF (ADD)
+        if create_vns is not None:
+            ADD_VNF_SCENARIO = False
+            for vn in create_vns:
+                if 'left' in vn['name']:
+                    vn_id_l = vn['id']
+                    vn_name_l = vn['name']
+                    r = ecm_util.invoke_ecm_api(vn_id_l, c.ecm_service_api_vns, 'GET')
+                    resp = json.loads(r.text)
+                    vn_vimobject_id_l = resp['data']['vn']['vimObjectId']
+                else:
+                    vn_id_r = vn['id']
+                    vn_name_r = vn['name']
+                    r = ecm_util.invoke_ecm_api(vn_id_r, c.ecm_service_api_vns, 'GET')
+                    resp = json.loads(r.text)
+                    vn_vimobject_id_r = resp['data']['vn']['vimObjectId']
 
-                self.dbman.query('UPDATE vnf SET vnf_id = ?, vn_group_id = ?, ntw_service_binding = ?, vnf_status = ? '
-                                 'WHERE ntw_service_id = ? AND vnf_type = ? AND vnf_status = ?', (vnf_id, vn_group_id, 'YES',
-                                                                               'COMPLETE', service_id, vnf_type, 'PENDING'))
+            self.logger.info('Saving VN_GROUP info into database.')
+            vn_group_row = (vn_id_l, vn_name_l, vn_vimobject_id_l, vn_id_r, vn_name_r, vn_vimobject_id_r)
+            vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
 
-                # Save VM
-                self.logger.info('Saving VM info into database.')
-                vm_row = (vm_id, vnf_id, vm_name)
-                self.dbman.save_vm(vm_row, False)
+        else:
+            ADD_VNF_SCENARIO = True
+            res = self.dbman.query('SELECT vnf.vn_group_id, vn_group.vn_left_name, vn_group.vn_right_name '
+                                   'FROM vnf, vn_group '
+                                   'WHERE vnf.ntw_service_id = ? '
+                                   'AND vnf.vn_group_id = vn_group.vn_group_id',
+                                   (service_id,)).fetchone()
+            vn_group_id = res['vn_group_id']
+            vn_name_l = res['vn_left_name']
+            vn_name_r = res['vn_right_name']
 
-                # Save VMVNIC
-                self.logger.info('Saving VMVNIC info into database.')
-                vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, vmvnic_ip_l, vmvnic_vimobjectid_l)
-                vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, vmvnic_ip_r, vmvnic_vimobjectid_r)
-                vmvnic_row_mgmt = (vmvnic_id_mgmt, vm_id, vmvnic_name_mgmt, vmvnic_ip_mgmt, vmvnic_vimobjectid_mgmt)
-                self.dbman.save_vmvnic(vmvnic_row_l, False)
-                self.dbman.save_vmvnic(vmvnic_row_r, False)
-                self.dbman.save_vmvnic(vmvnic_row_mgmt, False)
+        # Saving the remainder
+        create_vnfs = get_order_items('createVapp', self.order_json)
+        vnf_type_list = list()
 
-            self.dbman.commit()
-            self.logger.info('All data succesfully save into database.')
+        for vnf in create_vnfs:
+            vnf_id, vnf_name, vnf_type = vnf['id'], vnf['name'], vnf['name'].split('-')[1]
+            vnf_type_list.append(vnf_type)
 
-            # TODO in case of ADD new VNF, send a modifyService to associate all the VNFs to the NetworkService
+            create_vms = get_order_items('createVm', self.order_json)
 
-            # Creating VLINK
-            # TODO adapt this in order to handle the MODIFY VLINK as well
-            if ADD_VNF_SCENARIO is True:
-                self.logger.info('Modifying VLINK object...')
-                self.logger.info('MOCK not implmenented yet...')
-                # TODO load mofify_vlink JSON and put in ex input modify
-            else:
-                self.logger.info('Creating VLINK object...')
+            for vm in create_vms:
+                if vm['vapp']['name'] == vnf_name:
+                    vm_id, vm_name = vm['id'], vm['name']
 
-                vlink_json = load_json_file('json/create_vlink.json')
-                vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
-                vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
+            create_vmvnics = get_order_items('createVmVnic', self.order_json)
 
-                ex_input = load_json_file('json/extensions_input_create.json')
+            for vmvnic in create_vmvnics:
+                if vmvnic['vm']['name'] == vm_name:
+                    if 'left' in vmvnic['vn']['name']:
+                        vmvnic_id_l, vmvnic_name_l = vmvnic['id'], vmvnic['name']
+                        r = ecm_util.invoke_ecm_api(vmvnic_id_l, c.ecm_service_api_vmvnics, 'GET')
+                        resp = json.loads(r.text)
+                        vmvnic_ip_l = resp['data']['vmVnic']['internalIpAddress'][0]
+                        vmvnic_vimobjectid_l = resp['data']['vmVnic']['vimObjectId']
+                    elif 'right' in vmvnic['vn']['name']:
+                        vmvnic_id_r, vmvnic_name_r = vmvnic['id'], vmvnic['name']
+                        r = ecm_util.invoke_ecm_api(vmvnic_id_r, c.ecm_service_api_vmvnics, 'GET')
+                        resp = json.loads(r.text)
+                        vmvnic_ip_r = resp['data']['vmVnic']['internalIpAddress'][0]
+                        vmvnic_vimobjectid_r = resp['data']['vmVnic']['vimObjectId']
+                    elif 'management' in vmvnic['vn']['name']:
+                        vmvnic_id_mgmt, vmvnic_name_mgmt = vmvnic['id'], vmvnic['name']
+                        r = ecm_util.invoke_ecm_api(vmvnic_id_mgmt, c.ecm_service_api_vmvnics, 'GET')
+                        resp = json.loads(r.text)
+                        vmvnic_ip_mgmt = resp['data']['vmVnic']['internalIpAddress'][0]
+                        vmvnic_vimobjectid_mgmt = resp['data']['vmVnic']['vimObjectId']
 
-                # In case of multiple VNF, duplicating the entire service-instance tag
-                policy_rule_list = list()
+            # Save VNF
+            self.logger.info('Saving VNF info into database.')
 
-                for vnf_type_el in vnf_type_list:
-                    # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
-                    cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id,vmvnic.vm_vnic_vimobject_id '
-                                           'FROM vmvnic, vm, network_service, vnf '
-                                           'WHERE network_service.customer_id = ? '
-                                           'AND vnf.ntw_service_id = network_service.ntw_service_id '
-                                           'AND vnf.vnf_type = ? '
-                                           'AND vnf.vnf_id = vm.vnf_id '
-                                           'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
+            self.dbman.query('UPDATE vnf SET vnf_id = ?, vn_group_id = ?, ntw_service_binding = ?, vnf_status = ? '
+                             'WHERE ntw_service_id = ? AND vnf_type = ? AND vnf_status = ?', (vnf_id, vn_group_id, 'YES',
+                                                                           'COMPLETE', service_id, vnf_type, 'PENDING'))
 
-                    rows = cur.fetchall()
+            # Save VM
+            self.logger.info('Saving VM info into database.')
+            vm_row = (vm_id, vnf_id, vm_name)
+            self.dbman.save_vm(vm_row, False)
 
-                    service_instance = {
-                        'operation': 'create',
-                        'si_name': customer_id + '-' + vnf_type_el,
-                        'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
-                        'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
-                        'service_template': 'cpower-template',
-                        'port-tuple': {
-                            'name': 'porttuple-' + customer_id + '-' + vnf_type_el,
-                            'si-name': customer_id + '-' + vnf_type_el
-                        },
-                        'update-vmvnic': {
-                            'left': (
-                            rows[0]['vm_vnic_vimobject_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
-                            'right': (
-                            rows[0]['vm_vnic_vimobject_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
-                            'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
-                        }
+            # Save VMVNIC
+            self.logger.info('Saving VMVNIC info into database.')
+            vmvnic_row_l = (vmvnic_id_l, vm_id, vmvnic_name_l, vmvnic_ip_l, vmvnic_vimobjectid_l)
+            vmvnic_row_r = (vmvnic_id_r, vm_id, vmvnic_name_r, vmvnic_ip_r, vmvnic_vimobjectid_r)
+            vmvnic_row_mgmt = (vmvnic_id_mgmt, vm_id, vmvnic_name_mgmt, vmvnic_ip_mgmt, vmvnic_vimobjectid_mgmt)
+            self.dbman.save_vmvnic(vmvnic_row_l, False)
+            self.dbman.save_vmvnic(vmvnic_row_r, False)
+            self.dbman.save_vmvnic(vmvnic_row_mgmt, False)
+
+        self.dbman.commit()
+        self.logger.info('All data succesfully save into database.')
+
+        # TODO in case of ADD new VNF, send a modifyService to associate all the VNFs to the NetworkService
+
+        # Creating VLINK
+        # TODO adapt this in order to handle the MODIFY VLINK as well
+        if ADD_VNF_SCENARIO is True:
+            self.logger.info('Modifying VLINK object...')
+            self.logger.info('MOCK not implmenented yet...')
+            # TODO load mofify_vlink JSON and put in ex input modify
+            vlink_json = load_json_file('json/modify_vlink.json')
+
+            ex_input = load_json_file('json/extensions_input_modify.json')
+
+
+            self.dbman.query('SELECT ntw_policy FROM network_service WHERE ntw_service_id = ?', (service_id,))
+            current_ntw_policy = self.dbman.fetchone()['ntw_policy'].split(',')
+
+            for vnf_type_el in vnf_type_list:
+                # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
+                cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id,vmvnic.vm_vnic_vimobject_id '
+                                       'FROM vmvnic, vm, network_service, vnf '
+                                       'WHERE network_service.customer_id = ? '
+                                       'AND vnf.ntw_service_id = network_service.ntw_service_id '
+                                       'AND vnf.vnf_type = ? '
+                                       'AND vnf.vnf_id = vm.vnf_id '
+                                       'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
+
+                rows = cur.fetchall()
+
+                service_instance = {
+                    'operation': 'create',
+                    'si_name': customer_id + '-' + vnf_type_el,
+                    'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
+                    'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
+                    'service_template': 'cpower-template',
+                    'port-tuple': {
+                        'name': 'porttuple-' + customer_id + '-' + vnf_type_el,
+                        'si-name': customer_id + '-' + vnf_type_el
+                    },
+                    'update-vmvnic': {
+                        'left': (
+                            rows[0]['vm_vnic_vimobject_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1][
+                                'vm_vnic_vimobject_id']),
+                        'right': (
+                            rows[0]['vm_vnic_vimobject_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1][
+                                'vm_vnic_vimobject_id']),
+                        'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
                     }
+                }
 
-                    ex_input['extensions-input']['service-instance'].append(service_instance)
+                ex_input['extensions-input']['service-instance'].append(service_instance)
 
-                    policy_rule_list.append(customer_id + '-' + vnf_type_el)
+                current_ntw_policy.append(customer_id + '-' + vnf_type_el)
 
-                ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
-                ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
-                ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
+            ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
+            ex_input['extensions-input']['network-policy']['policy-rule'] = current_ntw_policy
 
-                ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
-                ex_input['extensions-input']['update-vn-RT']['right_RT'] = get_custom_order_param('rt-right',
-                                                                                                  custom_order_params)
-                ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
-                ex_input['extensions-input']['update-vn-RT']['left_RT'] = get_custom_order_param('rt-left',
-                                                                                                 custom_order_params)
-                ex_input['extensions-input']['update-vn-RT'][
-                    'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
+            ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
+            ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
 
-                ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
+            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
 
-                vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+            ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
 
-                ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+        else:
+            self.logger.info('Creating VLINK object...')
+
+            vlink_json = load_json_file('json/create_vlink.json')
+            vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
+            vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
+
+            ex_input = load_json_file('json/extensions_input_create.json')
+
+            # In case of multiple VNF, duplicating the entire service-instance tag
+            policy_rule_list = list()
+
+            for vnf_type_el in vnf_type_list:
+                # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
+                cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id,vmvnic.vm_vnic_vimobject_id '
+                                       'FROM vmvnic, vm, network_service, vnf '
+                                       'WHERE network_service.customer_id = ? '
+                                       'AND vnf.ntw_service_id = network_service.ntw_service_id '
+                                       'AND vnf.vnf_type = ? '
+                                       'AND vnf.vnf_id = vm.vnf_id '
+                                       'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
+
+                rows = cur.fetchall()
+
+                service_instance = {
+                    'operation': 'create',
+                    'si_name': customer_id + '-' + vnf_type_el,
+                    'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
+                    'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
+                    'service_template': 'cpower-template',
+                    'port-tuple': {
+                        'name': 'porttuple-' + customer_id + '-' + vnf_type_el,
+                        'si-name': customer_id + '-' + vnf_type_el
+                    },
+                    'update-vmvnic': {
+                        'left': (
+                        rows[0]['vm_vnic_vimobject_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
+                        'right': (
+                        rows[0]['vm_vnic_vimobject_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
+                        'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
+                    }
+                }
+
+                ex_input['extensions-input']['service-instance'].append(service_instance)
+
+                policy_rule_list.append(customer_id + '-' + vnf_type_el)
+
+            ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
+            ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
+            ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
+
+            ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
+            ex_input['extensions-input']['update-vn-RT']['right_RT'] = get_custom_order_param('rt-right',
+                                                                                              custom_order_params)
+            ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
+            ex_input['extensions-input']['update-vn-RT']['left_RT'] = get_custom_order_param('rt-left',
+                                                                                             custom_order_params)
+            ex_input['extensions-input']['update-vn-RT'][
+                'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
+
+            ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
+
+            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+
+            ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
 
     def rollback(self):
         pass

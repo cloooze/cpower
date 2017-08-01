@@ -68,7 +68,7 @@ class CreateOrderVlink(Event):
                      'left-ip': left_ip,
                      'right-ip': right_ip})
 
-            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, chain_left_ip, chain_right_ip, nso_vnf_list))
+            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, service_id, chain_left_ip, chain_right_ip, nso_vnf_list))
 
             self.dbman.notify_nso(service_id)
 
@@ -96,6 +96,9 @@ class CreateOrderVlink(Event):
             self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
 
     def rollback(self):
+        if self.order_status == 'COM':
+            return
+
         self.logger.info('Could not create VLink. Rollbacking VNFs creation...')
         # Getting the ntw_policy_rule list
         service_id = self.event_params['service_id']

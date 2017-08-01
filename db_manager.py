@@ -86,6 +86,10 @@ class DBManager(object):
         q = 'SELECT * FROM network_service WHERE ntw_service_id=?'
         self.query(q, (network_service_id, ))
 
+    def delete_network_service(self, network_service_id):
+        q = 'DELETE FROM network_service WHERE ntw_service_id=?'
+        self.query(q, (network_service_id,))
+
     # VNF table
 
     def save_vnf(self, row, commit=True):
