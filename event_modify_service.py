@@ -119,6 +119,27 @@ class ModifyService(Event):
         elif len(delete_vnf) > 0:  # Doing the delete here ONLY if there is nothing to add
             placeholders = ','.join('?' for vnf in delete_vnf)
 
+            # Dissociating VNFs to delete from Network Service first
+            self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type NOT IN (%s)' % placeholders,
+                             tuple([service_id]) + tuple(delete_vnf))
+            res = self.dbman.fetchall()
+
+            if res is not None:
+                self.logger.info('Dissociating VNFs to delete from Network Service %s.' % service_id)
+                vnf_id_to_keep = list(vnf['vnf_id'] for vnf in res)
+
+                modify_service_json = load_json_file('./json/modify_service.json')
+
+                for vnf_id in vnf_id_to_keep:
+                    modify_service_json['vapps'].append({'id': vnf_id})
+
+                modify_service_json['customInputParams'].append(get_cop('next_action', 'skip'))
+
+                ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
+
+                time.sleep(5)
+
+            # Deleting the VNFs
             self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type IN (%s)' % placeholders,
                              tuple([service_id]) + tuple(delete_vnf))
             res = self.dbman.fetchall()

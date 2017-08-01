@@ -23,6 +23,8 @@ class ModifyVlink(Event):
         raise NotImplementedError
 
     def execute(self):
+        # TODO get response and update ntw_policy column in network_service table
+        # TODO rollback if status=ERR
         raise NotImplementedError
 
     def rollback(self):
