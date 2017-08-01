@@ -23,12 +23,9 @@ class ModifyService(Event):
         pass
 
     def execute(self):
-        """ The modifyService might be invoked by many scenarios, let's try to summarize them:
-        1) NSO wants to add/delete a VNF
-        2) Custom Workflow wants to attach/detach a VNF to/from a NetworkService
-        3) NSO wants to add/remove/add and remove/switch VNFs from an existing Network Service """
-
-        # TODO split the flow in 3 as above!!!!!
+        """ The modifyService might be invoked in several scenarios:
+        1) NSO wants to add/delete/switch a VNFs
+        2) Custom Workflow wants to attach/detach a VNF to/from a NetworkService """
 
         modify_service = get_order_items('modifyService', self.order_json, 1)
         service_id = modify_service['id']

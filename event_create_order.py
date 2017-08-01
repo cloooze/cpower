@@ -159,29 +159,23 @@ class CreateOrder(Event):
         # TODO in case of ADD new VNF, send a modifyService to associate all the VNFs to the NetworkService
 
         # Creating VLINK
-        # TODO adapt this in order to handle the MODIFY VLINK as well
         if ADD_VNF_SCENARIO is True:
             self.logger.info('Modifying VLINK object...')
-            self.logger.info('MOCK not implmenented yet...')
-            # TODO load mofify_vlink JSON and put in ex input modify
-            vlink_json = load_json_file('json/modify_vlink.json')
 
+            vlink_json = load_json_file('json/modify_vlink.json')
             ex_input = load_json_file('json/extensions_input_modify.json')
 
             self.dbman.query('SELECT ntw_policy FROM network_service WHERE ntw_service_id = ?', (service_id,))
             current_ntw_policy = self.dbman.fetchone()['ntw_policy'].split(',')
 
             for vnf_type_el in vnf_type_list:
-                # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
-                cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id,vmvnic.vm_vnic_vimobject_id '
-                                       'FROM vmvnic, vm, network_service, vnf '
-                                       'WHERE network_service.customer_id = ? '
-                                       'AND vnf.ntw_service_id = network_service.ntw_service_id '
-                                       'AND vnf.vnf_type = ? '
-                                       'AND vnf.vnf_id = vm.vnf_id '
-                                       'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
+                vm_vnic_name_left = customer_id + '-' + vnf_type_el + '-left'
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic WHERE vm_vnic_name=?', (vm_vnic_name_left, ))
+                vm_vnic_vimobject_id_left = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
-                rows = cur.fetchall()
+                vm_vnic_name_right = customer_id + '-' + vnf_type_el + '-right'
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic WHERE vm_vnic_name=?', (vm_vnic_name_right,))
+                vm_vnic_vimobject_id_right = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
                 service_instance = {
                     'operation': 'create',
@@ -194,12 +188,8 @@ class CreateOrder(Event):
                         'si-name': customer_id + '-' + vnf_type_el
                     },
                     'update-vmvnic': {
-                        'left': (
-                            rows[0]['vm_vnic_vimobject_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1][
-                                'vm_vnic_vimobject_id']),
-                        'right': (
-                            rows[0]['vm_vnic_vimobject_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1][
-                                'vm_vnic_vimobject_id']),
+                        'left': vm_vnic_vimobject_id_left,
+                        'right': vm_vnic_vimobject_id_right,
                         'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
                     }
                 }
@@ -218,7 +208,6 @@ class CreateOrder(Event):
             ex_input['extensions-input']['update-vn-RT']['left_VN'] = res['vn_left_vimobject_id']
 
             vlink_json['customInputParams'][0]['value'] = json.dumps(ex_input)
-            #vlink_json['customInputParams'].append(get_cop('next_action', 'skip')) NOT ALLOWED??
 
             self.dbman.query('SELECT vlink_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
             vlink_id = self.dbman.fetchone()['vlink_id']
@@ -237,16 +226,13 @@ class CreateOrder(Event):
             policy_rule_list = list()
 
             for vnf_type_el in vnf_type_list:
-                # not really needed, vmvnic_name is always customer_id-vnf_type-left/right
-                cur = self.dbman.query('SELECT vmvnic.vm_vnic_name,vmvnic.vm_vnic_id,vmvnic.vm_vnic_vimobject_id '
-                                       'FROM vmvnic, vm, network_service, vnf '
-                                       'WHERE network_service.customer_id = ? '
-                                       'AND vnf.ntw_service_id = network_service.ntw_service_id '
-                                       'AND vnf.vnf_type = ? '
-                                       'AND vnf.vnf_id = vm.vnf_id '
-                                       'AND vmvnic.vm_id = vm.vm_id', (customer_id, vnf_type_el))
+                vm_vnic_name_left = customer_id + '-' + vnf_type_el + '-left'
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic WHERE vm_vnic_name=?', (vm_vnic_name_left,))
+                vm_vnic_vimobject_id_left = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
-                rows = cur.fetchall()
+                vm_vnic_name_right = customer_id + '-' + vnf_type_el + '-right'
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic WHERE vm_vnic_name=?', (vm_vnic_name_right,))
+                vm_vnic_vimobject_id_right = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
                 service_instance = {
                     'operation': 'create',
@@ -259,11 +245,8 @@ class CreateOrder(Event):
                         'si-name': customer_id + '-' + vnf_type_el
                     },
                     'update-vmvnic': {
-                        'left': (
-                        rows[0]['vm_vnic_vimobject_id'] if 'left' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
-                        'right': (
-                        rows[0]['vm_vnic_vimobject_id'] if 'right' in rows[0]['vm_vnic_name'] else rows[1]['vm_vnic_vimobject_id']),
-                        'port-tuple': 'porttuple-' + customer_id + '-' + vnf_type
+                        'left': vm_vnic_vimobject_id_left,
+                        'right': vm_vnic_vimobject_id_right
                     }
                 }
 
