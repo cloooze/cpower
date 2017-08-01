@@ -9,11 +9,6 @@ from utils import *
 import time
 
 
-INTERNAL_ERROR = '100'
-REQUEST_ERROR = '200'
-NETWORK_ERROR = '300'
-
-
 class ModifyService(Event):
 
     def __init__(self, order_status, order_id, source_api, order_json):
@@ -29,9 +24,11 @@ class ModifyService(Event):
 
     def execute(self):
         """ The modifyService might be invoked by many scenarios, let's try to summarize them:
-        1) NSO wants to delete a VNF, therefore it sends a modifyService with the VNF type it wants to delete
-        2) Custom Workflow want's to detach a VNF from a NetworkService as it wants to delete the VNF (in this case do nothing)
+        1) NSO wants to add/delete a VNF
+        2) Custom Workflow wants to attach/detach a VNF to/from a NetworkService
         3) NSO wants to add/remove/add and remove/switch VNFs from an existing Network Service """
+
+        # TODO split the flow in 3 as above!!!!!
 
         modify_service = get_order_items('modifyService', self.order_json, 1)
         service_id = modify_service['id']
@@ -68,7 +65,7 @@ class ModifyService(Event):
                 delete_vnf.append(vnf.strip())
 
         self.logger.info('VNF to add to the existing Network Service: %s' % add_vnf)
-        self.logger.info('VNF to delete (will be deleted if the creation succeed): %s' % delete_vnf)
+        self.logger.info('VNF to delete (if adding VNF, the delete will be done after the creation): %s' % delete_vnf)
 
         if len(add_vnf) > 0:
             # Sending order for new vnf to create
@@ -117,7 +114,7 @@ class ModifyService(Event):
                 order['customOrderParams'].append(get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)))
                 # Saving temporary VNFs to ADD into DB
                 for vnf_type in delete_vnf:
-                    self.logger.info('Saving temporary VNF [%s] to DELETE into database' % vnf_type)
+                    self.logger.info('Setting VNF [%s] to DELETE into database' % vnf_type)
                     self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_type = ? AND vnf_operation = ? AND vnf_status = ? AND ntw_service_id = ?', ('DELETE', 'PENDING', vnf_type, 'CREATE', 'COMPLETE', service_id))
 
             ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)

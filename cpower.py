@@ -11,6 +11,7 @@ from event_create_order_vlink import CreateOrderVlink
 from event_create_order_service import CreateOrderService
 from event_delete_vn import DeleteVn
 from event_modify_service import ModifyService
+from event_modify_vlink import ModifyVlink
 from event_delete_service import DeleteService
 from event_delete_vnf import DeleteVnf
 from utils import *
@@ -60,6 +61,7 @@ def main():
             CreateOrderVlink(order_status, order_id, source_api, order_json)
         ],
         'modifyService': ModifyService(order_status, order_id, source_api, order_json),
+        'modifyVlink': ModifyVlink(order_status, order_id, source_api, order_json),
         'deleteService': DeleteService(order_status, order_id, source_api, order_json),
         'deleteVn': DeleteVn(order_status, order_id, source_api, order_json),
         'deleteVapp': DeleteVnf(order_status, order_id, source_api, order_json)
@@ -97,3 +99,4 @@ if __name__ == '__main__':
     main()
 else:
     print 'sorry :('
+

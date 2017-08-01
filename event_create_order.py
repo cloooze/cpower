@@ -168,7 +168,6 @@ class CreateOrder(Event):
 
             ex_input = load_json_file('json/extensions_input_modify.json')
 
-
             self.dbman.query('SELECT ntw_policy FROM network_service WHERE ntw_service_id = ?', (service_id,))
             current_ntw_policy = self.dbman.fetchone()['ntw_policy'].split(',')
 
@@ -212,12 +211,18 @@ class CreateOrder(Event):
             ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
             ex_input['extensions-input']['network-policy']['policy-rule'] = current_ntw_policy
 
-            ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
-            ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
+            self.dbman.query('SELECT vn_left_vimobject_id, vn_right_vimobject_id FROM vn_group, vnf WHERE vnf.vnf_id=? AND vnf.vn_group_id = vn_group.vn_group_id', (vnf_id,))
+            res = self.dbman.fetchone()
 
-            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+            ex_input['extensions-input']['update-vn-RT']['right_VN'] = res['vn_right_vimobject_id']
+            ex_input['extensions-input']['update-vn-RT']['left_VN'] = res['vn_left_vimobject_id']
 
-            ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+            vlink_json['customInputParams'][0]['value'] = json.dumps(ex_input)
+            #vlink_json['customInputParams'].append(get_cop('next_action', 'skip')) NOT ALLOWED??
+
+            self.dbman.query('SELECT vlink_id FROM network_service WHERE ntw_service_id = ?', (service_id,))
+            vlink_id = self.dbman.fetchone()['vlink_id']
+            ecm_util.invoke_ecm_api(vlink_id, c.ecm_service_api_vlinks, 'PUT', vlink_json)
 
         else:
             self.logger.info('Creating VLINK object...')
