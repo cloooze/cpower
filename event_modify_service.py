@@ -137,7 +137,7 @@ class ModifyService(Event):
 
                 ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
 
-                time.sleep(5)
+                time.sleep(10)
 
             # Deleting the VNFs
             self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type IN (%s)' % placeholders,
@@ -147,8 +147,9 @@ class ModifyService(Event):
             if res is not None:
                 for vnf in res:
                     vnf_id = vnf['vnf_id']
-                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_id = ?', ('DELETE', 'PENDING', vnf_id))
                     ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
+                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_id = ?',
+                                     ('DELETE', 'PENDING', vnf_id))
 
     def rollback(self):
         pass

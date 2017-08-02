@@ -113,7 +113,8 @@ class CreateOrderService(Event):
 
             # Saving temporary VNFs into DB
             self.logger.info('Saving temporary VNF [%s] into database' % vnf_type)
-            row = (customer_id + vnf_type + '_' + get_temp_id(), service_id, '', vnf_type, position, 'NO', 'CREATE', 'PENDING')
+            temp_vnf_id = customer_id + vnf_type + '_' + get_temp_id()
+            row = (temp_vnf_id, service_id, '', vnf_type, position, 'NO', 'CREATE', 'PENDING', 'NO')
             self.dbman.save_vnf(row)
             self.dbman.commit()
 
@@ -123,8 +124,11 @@ class CreateOrderService(Event):
         order = dict(
             {
                 "tenantName": c.ecm_tenant_name,
-                "customOrderParams": [get_cop('vnf_list', ','.join(vnf_list)), get_cop('service_id', service_id),
-                                      get_cop('customer_id', customer_id), get_cop('rt-left', rt_left),
+                "customOrderParams": [get_cop('vnf_list', ','.join(vnf_list)),
+                                      get_cop('service_id', service_id),
+                                      get_cop('customer_id', customer_id),
+                                      get_cop('temp_vnf_id', temp_vnf_id),
+                                      get_cop('rt-left', rt_left),
                                       get_cop('rt-right', rt_right)],
                 "orderItems": order_items
             }

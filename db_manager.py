@@ -93,7 +93,7 @@ class DBManager(object):
     # VNF table
 
     def save_vnf(self, row, commit=True):
-        q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        q = 'INSERT INTO vnf VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         self.query(q, row, commit)
 
     def get_vnf(self, vnf_id):
@@ -103,6 +103,10 @@ class DBManager(object):
     def delete_vnf(self, condition, commit=True):
         q = 'DELETE FROM vnf WHERE vnf_id=?'
         self.query(q, (condition, ), commit)
+
+    def set_notify_nso(self, value, vnf_id, commit=True):
+        q = 'UPDATE vnf SET notify_nso=? WHERE vnf_id=?'
+        self.query(q, (value, vnf_id), commit)
 
     # VN GROUP table
 

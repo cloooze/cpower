@@ -74,7 +74,7 @@ class DeleteVnf(Event):
 
         self.dbman.commit()
 
-        # TODO modifyVlink (only if all VNFs of the ntw_service have status not PENDING
+        # TODO modifyVlink (only if all VNFs of the ntw_service have status not PENDING)
 
     def rollback(self):
         pass

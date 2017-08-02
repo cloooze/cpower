@@ -70,6 +70,7 @@ class CreateOrderVlink(Event):
 
             nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, service_id, chain_left_ip, chain_right_ip, nso_vnf_list))
 
+            self.dbman.query('UPDATE vnf SET notify_nso=? WHERE vnf_id IN ?', ('YES', tuple(vnf_id_type.split('-')[0])))
             self.dbman.notify_nso(service_id)
 
     def execute(self):

@@ -144,7 +144,9 @@ def notify_nso(operation, data):
         elif operation == 'deleteService':
             nso_endpoint = c.nso_server_address + c.nso_service_uri_delete_service
         elif operation == 'deleteVnf':
-            nso_endpoint = c.nso_server_address + c.nso_service_uri_delete_vnf
+            nso_endpoint = c.nso_server_address + c.nso_service_uri_modify_service
+        elif operation == 'modifyService':
+            nso_endpoint = c.nso_server_address + c.nso_service_uri_modify_service
 
         logger.info("Invoking NSO API POST %s - POST" % nso_endpoint)
         logger.debug("Sending data: %s" % data)
@@ -169,5 +171,3 @@ def notify_nso(operation, data):
             return resp
     logger.error("Could not get a response from NSO. Connection Timeout.")
     raise NSOConnectionError
-
-

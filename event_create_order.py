@@ -20,7 +20,11 @@ class CreateOrder(Event):
     def notify(self):
         if self.order_status == 'ERR':
             customer_id = self.event_params['customer_id']
+            temp_vnf_id = self.event_params['temp_vnf_id']
+
             nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
+
+            self.dbman.set_notify_nso('YES', temp_vnf_id)
 
     def execute(self):
         # Getting customer order params from getOrder response
@@ -28,11 +32,12 @@ class CreateOrder(Event):
             custom_order_params = self.order_json['data']['order']['customOrderParams']
             customer_id = get_custom_order_param('customer_id', custom_order_params)
             service_id = get_custom_order_param('service_id', custom_order_params)
+            temp_vnf_id = get_custom_order_param('temp_vnf_id', custom_order_params)
         except KeyError:
             self.logger.info('Received an order not handled by the Custom Workflow. Skipping execution...')
             return
 
-        self.event_params = {'service_id': service_id, 'customer_id': customer_id}
+        self.event_params = {'service_id': service_id, 'customer_id': customer_id, 'temp_vnf_id': temp_vnf_id}
 
         if get_custom_order_param('next_action', custom_order_params) == 'delete_vnf':
             vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
