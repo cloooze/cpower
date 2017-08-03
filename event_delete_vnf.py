@@ -32,9 +32,14 @@ class DeleteVnf(Event):
             vnf_name = self.event_params['vnf_type']
 
             if self.order_status == 'ERR':
-                nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('failed', customer_id))
+                nso_util.notify_nso('modifyService', nso_util.get_create_vnf_data_response('failed', customer_id))
             else:
-                nso_util.notify_nso('deleteVnf', nso_util.get_delete_vnf_data_response('success', customer_id, service_id, vnf_id, vnf_name))
+                vnf_list = list()
+                vnf_list.append({'operation': 'remove', 'vnf_id': vnf_id, 'vnf_name': vnf_name})
+
+                nso_util.notify_nso('modifyService', nso_util.get_create_vnf_data_response('success', customer_id, service_id, vnf_list))
+
+                self.dbman.query('UPDATE vnf SET nso_notify=? WHERE vnf_id=?', ('YES', vnf_id))
 
     def execute(self):
         delete_vnf = get_order_items('deleteVapp', self.order_json, 1)
@@ -45,10 +50,10 @@ class DeleteVnf(Event):
             self.dbman.query('UPDATE vnf SET vnf_status = ? WHERE vnf_id = ?', ('ERROR', vnf_id))
             return 'FAILURE'
 
-        self.dbman.query('SELECT ns.ntw_policy,vnf.vnf_type, vnf.ntw_service_id '
-                         'FROM network_service ns, vnf '
+        self.dbman.query('SELECT network_service.ntw_policy,vnf.vnf_type, vnf.ntw_service_id '
+                         'FROM network_service, vnf '
                          'WHERE vnf.vnf_id = ? '
-                         'AND vnf.ntw_service_id = ns.ntw_service_id', (vnf_id,))
+                         'AND vnf.ntw_service_id = network_service.ntw_service_id', (vnf_id,))
 
         res = self.dbman.fetchone()
 

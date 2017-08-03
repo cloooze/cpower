@@ -26,6 +26,10 @@ class CreateOrder(Event):
 
             self.dbman.set_notify_nso('YES', temp_vnf_id)
 
+        if self.event_params['add_vnf_scenario']:
+            # TODO notify NSO
+            pass
+
     def execute(self):
         # Getting customer order params from getOrder response
         try:
@@ -70,7 +74,7 @@ class CreateOrder(Event):
 
         # If create_vns is None it means that the order was related to the creation of an addition VNF (ADD)
         if create_vns is not None:
-            ADD_VNF_SCENARIO = False
+            add_vnf_scenario = False
             for vn in create_vns:
                 if 'left' in vn['name']:
                     vn_id_l = vn['id']
@@ -90,7 +94,7 @@ class CreateOrder(Event):
             vn_group_id = self.dbman.save_vn_group(vn_group_row, False)
 
         else:
-            ADD_VNF_SCENARIO = True
+            add_vnf_scenario = True
             res = self.dbman.query('SELECT vnf.vn_group_id, vn_group.vn_left_name, vn_group.vn_right_name '
                                    'FROM vnf, vn_group '
                                    'WHERE vnf.ntw_service_id = ? '
@@ -99,6 +103,8 @@ class CreateOrder(Event):
             vn_group_id = res['vn_group_id']
             vn_name_l = res['vn_left_name']
             vn_name_r = res['vn_right_name']
+
+        self.event_params = {'add_vnf_scenario': add_vnf_scenario}
 
         # Saving the remainder
         create_vnfs = get_order_items('createVapp', self.order_json)
@@ -164,8 +170,10 @@ class CreateOrder(Event):
         # TODO in case of ADD new VNF, send a modifyService to associate all the VNFs to the NetworkService
 
         # Creating VLINK
-        if ADD_VNF_SCENARIO is True:
+        if add_vnf_scenario:
             self.logger.info('Modifying VLINK object...')
+            self.logger.info('Skipping modify Vlink - NOT YET IMPLEMENTED IN ACTIVATION ADAPTER.')
+            return
 
             vlink_json = load_json_file('json/modify_vlink.json')
             ex_input = load_json_file('json/extensions_input_modify.json')

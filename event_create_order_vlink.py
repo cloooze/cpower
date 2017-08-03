@@ -49,9 +49,11 @@ class CreateOrderVlink(Event):
                 (service_id, service_id, '%right')).fetchone()['vm_vnic_ip']
 
             nso_vnf_list = list()
+            vnf_id_list = list()
 
             for vnf_id_type in vnf_id_type_list:
-                res = self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip FROM vm, vmvnic WHERE vm.vnf_id = ? AND vm.vm_id = vmvnic.vm_id', (vnf_id_type.split('_')[0], )).fetchall()
+                res = self.dbman.query('SELECT vm_vnic_name, vm_vnic_ip FROM vm, vmvnic WHERE vm.vnf_id = ? AND '
+                                       'vm.vm_id = vmvnic.vm_id', (vnf_id_type.split('_')[0], )).fetchall()
                 for v in res:
                     if 'left' in v['vm_vnic_name']:
                         left_ip = v['vm_vnic_ip']
@@ -68,9 +70,12 @@ class CreateOrderVlink(Event):
                      'left-ip': left_ip,
                      'right-ip': right_ip})
 
+                vnf_id_list.append(vnf_id_type.split('_')[0])
+
             nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, service_id, chain_left_ip, chain_right_ip, nso_vnf_list))
 
-            self.dbman.query('UPDATE vnf SET notify_nso=? WHERE vnf_id IN ?', ('YES', tuple(vnf_id_type.split('-')[0])))
+            placeholders = ','.join('?' for vnf in vnf_id_type_list)
+            self.dbman.query('UPDATE vnf SET notify_nso=? WHERE vnf_id IN (%s)' % placeholders, tuple(['YES']) + tuple(vnf_id_list))
             self.dbman.notify_nso(service_id)
 
     def execute(self):

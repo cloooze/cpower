@@ -38,7 +38,10 @@ def get_custom_input_params(order_item_name, json_data_compl):
 def get_custom_input_param(param_name, json_data):
     for custom_input_param in json_data:
         if param_name == custom_input_param['tag']:
-            return custom_input_param['value']
+            try:
+                return custom_input_param['value']
+            except KeyError:  # This because if vnf_list is empty, ECM will not add the tag value in customInputParam
+                return ''
     return None
 
 

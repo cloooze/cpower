@@ -13,7 +13,7 @@ retry_n = 3
 delete_sleep_time_sec = 20
 update_sleep_time_sec = 20
 
-mgmt_vn_id = 'abf38e36-c884-463d-b7de-ec7f6f67be12'
+mgmt_vn_id = '5ed79267-c294-4de0-bbf8-5a44533e2d73'
 
 
 ecm_server_address = "https://pmk03ecm.rmedlab.eld.it.eu.ericsson.se"

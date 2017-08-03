@@ -20,7 +20,9 @@ class ModifyService(Event):
         self.source_api = source_api
 
     def notify(self):
-        pass
+        if self.order_status == 'ERR':
+            self.logger.error('MOCK - notify NSO that modifyService request failed')
+            # TODO need to handle the modifyService failure scenario
 
     def execute(self):
         """ The modifyService might be invoked in several scenarios:
@@ -29,6 +31,10 @@ class ModifyService(Event):
 
         modify_service = get_order_items('modifyService', self.order_json, 1)
         service_id = modify_service['id']
+
+        if self.order_status == 'ERR':
+            self.event_params = {'service_id': service_id}
+            return 'FAILURE'
 
         modify_service_cip = get_custom_input_params('modifyService', self.order_json)
 
@@ -92,7 +98,7 @@ class ModifyService(Event):
 
                 # Saving temporary VNFs to ADD into DB
                 self.logger.info('Saving temporary VNF [%s] to ADD into database' % vnf_type)
-                row = (customer_id + vnf_type + '_' + get_temp_id(), service_id, '', vnf_type, target_vnf_type_list.index(vnf_type) + 1, 'NO', 'CREATE', 'PENDING')
+                row = (customer_id + vnf_type + '_' + get_temp_id(), service_id, '', vnf_type, target_vnf_type_list.index(vnf_type) + 1, 'NO', 'CREATE', 'PENDING', 'NO')
                 self.dbman.save_vnf(row)
 
             order = dict(
