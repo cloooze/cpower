@@ -173,7 +173,6 @@ class CreateOrder(Event):
         if add_vnf_scenario:
             self.logger.info('Modifying VLINK object...')
             self.logger.info('Skipping modify Vlink - NOT YET IMPLEMENTED IN ACTIVATION ADAPTER.')
-            return
 
             vlink_json = load_json_file('json/modify_vlink.json')
             ex_input = load_json_file('json/extensions_input_modify.json')

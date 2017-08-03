@@ -61,7 +61,7 @@ def main():
             CreateOrderVlink(order_status, order_id, source_api, order_json)
         ],
         'modifyService': ModifyService(order_status, order_id, source_api, order_json),
-        'modifyVlink': ModifyVlink(order_status, order_id, source_api, order_json),
+        'modifyVLink': ModifyVlink(order_status, order_id, source_api, order_json),
         'deleteService': DeleteService(order_status, order_id, source_api, order_json),
         'deleteVn': DeleteVn(order_status, order_id, source_api, order_json),
         'deleteVapp': DeleteVnf(order_status, order_id, source_api, order_json)

@@ -32,12 +32,12 @@ class DeleteVnf(Event):
             vnf_name = self.event_params['vnf_type']
 
             if self.order_status == 'ERR':
-                nso_util.notify_nso('modifyService', nso_util.get_create_vnf_data_response('failed', customer_id))
+                nso_util.notify_nso('modifyService', nso_util.get_delete_vnf_data_response('failed', customer_id))
             else:
                 vnf_list = list()
                 vnf_list.append({'operation': 'remove', 'vnf_id': vnf_id, 'vnf_name': vnf_name})
 
-                nso_util.notify_nso('modifyService', nso_util.get_create_vnf_data_response('success', customer_id, service_id, vnf_list))
+                nso_util.notify_nso('modifyService', nso_util.get_delete_vnf_data_response('success', customer_id, service_id, vnf_list))
 
                 self.dbman.query('UPDATE vnf SET nso_notify=? WHERE vnf_id=?', ('YES', vnf_id))
 
