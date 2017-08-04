@@ -70,12 +70,13 @@ class CreateOrderVlink(Event):
                      'left-ip': left_ip,
                      'right-ip': right_ip})
 
-                vnf_id_list.append(vnf_id_type.split('_')[0])
+                vnf_id = vnf_id_type.split('_')[0]
+                vnf_id_list.append(vnf_id)
 
             nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('success', customer_id, service_id, chain_left_ip, chain_right_ip, nso_vnf_list))
 
-            placeholders = ','.join('?' for vnf in vnf_id_type_list)
-            self.dbman.query('UPDATE vnf SET notify_nso=? WHERE vnf_id IN (%s)' % placeholders, tuple(['YES']) + tuple(vnf_id_list))
+            placeholders = ','.join('?' for vnf in vnf_id_list)
+            self.dbman.query('UPDATE vnf SET nso_notify=? WHERE vnf_id IN (%s)' % placeholders, tuple(['YES']) + tuple(vnf_id_list))
             self.dbman.notify_nso(service_id)
 
     def execute(self):

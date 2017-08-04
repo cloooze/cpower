@@ -47,7 +47,11 @@ class ModifyService(Event):
         customer_id = self.dbman.fetchone()['customer_id']
 
         # Getting target vnf_list
-        target_vnf_type_list = get_custom_input_param('vnf_list', modify_service_cip).split(',')
+        vnf_list = get_custom_input_param('vnf_list', modify_service_cip)
+        if vnf_list is None:
+            self.logger.error('Received an order not handled by the Custom Workflow. Skipping execution...')
+
+        target_vnf_type_list = vnf_list.split(',')
 
         # Getting current vnf_list from database
         self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id = ? AND vnf_operation = ? AND vnf_status = ?', (service_id, 'CREATE', 'COMPLETE' ))
@@ -115,10 +119,17 @@ class ModifyService(Event):
             if len(delete_vnf) > 0:
                 order['customOrderParams'].append(get_cop('next_action','delete_vnf'))
                 order['customOrderParams'].append(get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)))
+
                 # Saving temporary VNFs to ADD into DB
                 for vnf_type in delete_vnf:
                     self.logger.info('Setting VNF [%s] to DELETE into database' % vnf_type)
-                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_type = ? AND vnf_operation = ? AND vnf_status = ? AND ntw_service_id = ?', ('DELETE', 'PENDING', vnf_type, 'CREATE', 'COMPLETE', service_id))
+                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_type = ? AND '
+                                     'vnf_operation = ? AND vnf_status = ? AND ntw_service_id = ?', ('DELETE',
+                                                                                                     'PENDING',
+                                                                                                     vnf_type,
+                                                                                                     'CREATE',
+                                                                                                     'COMPLETE',
+                                                                                                     service_id))
 
             ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
 

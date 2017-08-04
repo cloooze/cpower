@@ -96,6 +96,7 @@ def log_config():
     logger.info('Host %s' % CONFIG.uri)
     logger.info('Tenant: %s' % TENANT)
 
+
 def setup_logger():
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
@@ -110,7 +111,7 @@ def run():
     client = Stomp(CONFIG)
     client.connect()
     client.subscribe(QUEUE, {StompSpec.ACK_HEADER: StompSpec.ACK_CLIENT_INDIVIDUAL})
-    # client.subscribe('DesignCompleteQ', {StompSpec.ACK_HEADER: StompSpec.ACK_CLIENT_INDIVIDUAL})
+
     while True:
         frame = client.receiveFrame()
         client.ack(frame)

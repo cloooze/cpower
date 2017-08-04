@@ -47,7 +47,9 @@ class CreateOrder(Event):
             vnf_type_list_to_delete = get_custom_order_param('vnf_list', custom_order_params)
 
             if self.order_status == 'ERR':
-                self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE ntw_service_id = ? AND vnf_operation = ? AND vnf_status = ?', ('CREATE', 'COMPLETE', service_id, 'DELETE', 'PENDING'))
+                self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE ntw_service_id = ? AND '
+                                 'vnf_operation = ? AND vnf_status = ?', ('CREATE', 'COMPLETE', service_id, 'DELETE',
+                                                                          'PENDING'))
             else:
                 placeholders = ','.join('?' for vnf in vnf_type_list_to_delete)
 

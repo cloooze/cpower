@@ -96,7 +96,7 @@ DELETE_SERVICE_NOK = {
 }
 
 
-def get_create_vnf_data_response(result, customer_id, service_id, chain_left_ip, chain_right_ip, vnf_list):
+def get_create_vnf_data_response(result, customer_id, service_id=None, chain_left_ip=None, chain_right_ip=None, vnf_list=None):
     if result == 'success':
         CREATE_DELETE_VNF_OK['customer'][0]['customer-key'] = customer_id
         CREATE_DELETE_VNF_OK['customer'][0]['chain-left-ip'] = chain_left_ip
@@ -124,21 +124,6 @@ def get_delete_vnf_data_response(result, customer_id, service_id, vnf_list):
         CREATE_DELETE_VNF_OK['customer'][0].pop('service-od')
         CREATE_DELETE_VNF_OK['customer'][0].pop('vnf')
         return CREATE_DELETE_VNF_NOK
-
-
-def get_delete_vnf_data_response(result, customer_id, service_id, vnf_id, vnf_name):
-    if result == 'success':
-        DELETE_VNF_OK['customer'][0]['customer-key'] = customer_id
-        DELETE_VNF_OK['customer'][0]['service-id'] = service_id
-        DELETE_VNF_OK['customer'][0]['vnf-id'] = vnf_id
-        DELETE_VNF_NOK['customer'][0]['vnf-name'] = vnf_name
-        return DELETE_VNF_OK
-    else:
-        DELETE_VNF_NOK['customer'][0]['customer-key'] = customer_id
-        DELETE_VNF_NOK['customer'][0]['service-id'] = service_id
-        DELETE_VNF_NOK['customer'][0]['vnf-id'] = vnf_id
-        DELETE_VNF_NOK['customer'][0]['vnf-name'] = vnf_name
-        return DELETE_SERVICE_NOK
 
 
 def get_delete_service_data_response(result, customer_id, service_id):
