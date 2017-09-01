@@ -55,11 +55,11 @@ class CreateOrderService(Event):
         rt_left = get_custom_order_param('rt_left', custom_order_params)
         rt_right = get_custom_order_param('rt_right', custom_order_params)
         rt_mgmt = get_custom_order_param('rt_mgmt', custom_order_params)
-        vnf_list = get_custom_order_param('vnf_list', custom_order_params).split(',')
+        vnf_type_list = get_custom_order_param('vnf_list', custom_order_params)
 
         # Checking if the needed custom order params are empty
         empty_custom_order_param = get_empty_param(customer_id=customer_id, rt_left=rt_left, rt_right=rt_right,
-                                                   vnf_list=vnf_list)
+                                                   vnf_list=vnf_type_list)
 
         if empty_custom_order_param is not None:
             # Notifying here because order_status is COM
@@ -88,48 +88,18 @@ class CreateOrderService(Event):
             # Same as for customer
             pass
 
-        # Create order
-
-        # TODO to move in config
-        csr1000_image_name = 'csr1000v-universalk9.16.04.01'
-        fortinet_image_name = 'todo'
-        vmhd_name = '2vcpu_4096MBmem_40GBdisk'
+        # Create order - create VNs
 
         order_items = list()
-
-        order_items.append(get_create_vn('99', c.ecm_vdc_id, customer_id + '-left', 'Virtual Network left'))
-        order_items.append(get_create_vn('100', c.ecm_vdc_id, customer_id + '-right', 'Virtual Network right'))
-
-        i = 1
-        position = 1
-
-        for vnf_type in vnf_list:
-            vnf_type = vnf_type.strip()
-            order_items.append(get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
-            order_items.append(get_create_vm(str(i + 1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
-            order_items.append(get_create_vmvnic(str(i + 2), customer_id + '-' + vnf_type + '-left', '99', str(i + 1), 'desc'))
-            order_items.append(get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '100', str(i + 1), 'desc'))
-            order_items.append(get_create_vmvnic(str(i+4), customer_id + '-' + vnf_type + '-mgmt', '', str(i+1), 'desc', c.mgmt_vn_id))
-
-            # Saving temporary VNFs into DB
-            self.logger.info('Saving temporary VNF [%s] into database' % vnf_type)
-            temp_vnf_id = customer_id + vnf_type + '_' + get_temp_id()
-            row = (temp_vnf_id, service_id, '', vnf_type, position, 'NO', 'CREATE', 'PENDING', 'NO')
-            self.dbman.save_vnf(row)
-            self.dbman.commit()
-
-            position += 1
-            i += 5
+        order_items.append(get_create_vn('1', c.ecm_vdc_id, customer_id + '-left', 'Virtual Network left'))
+        order_items.append(get_create_vn('2', c.ecm_vdc_id, customer_id + '-right', 'Virtual Network right'))
 
         order = dict(
             {
                 "tenantName": c.ecm_tenant_name,
-                "customOrderParams": [get_cop('vnf_list', ','.join(vnf_list)),
+                "customOrderParams": [get_cop('customer_id', customer_id),
                                       get_cop('service_id', service_id),
-                                      get_cop('customer_id', customer_id),
-                                      get_cop('temp_vnf_id', temp_vnf_id),
-                                      get_cop('rt-left', rt_left),
-                                      get_cop('rt-right', rt_right)],
+                                      get_cop('vnf_type_list', vnf_type_list)],
                 "orderItems": order_items
             }
         )

@@ -9,6 +9,7 @@ from ecm_exception import *
 from event_create_order import CreateOrder
 from event_create_order_vlink import CreateOrderVlink
 from event_create_order_service import CreateOrderService
+from event_create_order_vn import CreateOrderVn
 from event_delete_vn import DeleteVn
 from event_modify_service import ModifyService
 from event_modify_vlink import ModifyVlink
@@ -58,13 +59,15 @@ def main():
         'createOrder': [
             CreateOrder(order_status, order_id, source_api, order_json),
             CreateOrderService(order_status, order_id, source_api, order_json),
-            CreateOrderVlink(order_status, order_id, source_api, order_json)
+            CreateOrderVlink(order_status, order_id, source_api, order_json),
+            CreateOrderVn(order_status, order_id, source_api, order_json)
         ],
         'modifyService': ModifyService(order_status, order_id, source_api, order_json),
         'modifyVLink': ModifyVlink(order_status, order_id, source_api, order_json),
         'deleteService': DeleteService(order_status, order_id, source_api, order_json),
         'deleteVn': DeleteVn(order_status, order_id, source_api, order_json),
-        'deleteVapp': DeleteVnf(order_status, order_id, source_api, order_json)
+        'deleteVapp': DeleteVnf(order_status, order_id, source_api, order_json),
+        'deployHotPackage' : DeployHotPackage(order_status, order_id, source_api, order_json)
     }
 
     try:
@@ -79,6 +82,8 @@ def main():
                 event = events['createOrder'][2]
             elif get_order_items('createService', order_json, 1) is not None:
                 event = events['createOrder'][1]
+            elif get_order_items('createVn', order_json, 1) is not None:
+                event = events['createVn'][3]
             else:
                 event = events['createOrder'][0]
 

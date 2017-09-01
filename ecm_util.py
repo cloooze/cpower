@@ -66,8 +66,31 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
     raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
 
 
-# Deprecated
+def deploy_hot_package(hot_package_id, json_data):
+    count = 0
+    while count < c.retry_n:
+        logger.info('Invoking ECM API /ecm_service/hotpackages/%s/deploy - POST' % hot_package_id)
+        try:
+            resp = requests.post('%s%s%s/deploy' % (c.ecm_server_address, c.ecm_service_api_ovfpackage, hot_package_id),
+                                 data=json.dumps(json_data),
+                                 timeout=c.ecm_service_timeout,
+                                 headers=get_ecm_api_auth(),
+                                 verify=False)
+            logger.debug("Sending data: %s" % json_data)
+            resp.raise_for_status()
+            check_ecm_resp(resp)
+        except requests.exceptions.HTTPError:
+            raise ECMConnectionError('HTTP response code is not 200')
+        except requests.exceptions.Timeout:
+            logger.warning("ECM connection timeout, trying again...")
+            count += 1
+        except requests.exceptions.RequestException:
+            raise ECMConnectionError('Could not get a response from ECM.')
+        else:
+            return resp
+    raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
 
+# Deprecated
 
 def deploy_ovf_package(ovf_package_id, json_data):
     count = 0
