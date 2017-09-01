@@ -1,0 +1,30 @@
+{
+  "tenantName": "",
+  "vdc": {
+    "id": ""
+  },
+  "hotPackage": {
+    "vapp": {
+      "name": "<customer_id>-<vnf_type>",
+      "configData": [
+        {
+          "name": "vm1_name",
+          "value": "<customer_id>-<vnf_type>"
+        },
+        {
+          "name": "vn_left",
+          "value": "<customer_id>-left"
+        },
+        {
+          "name": "vn_right",
+          "value": "<customer_id>-right"
+        },
+        {
+          "name": "management",
+          "value": "<mgmt_name_from_config>"
+        }
+      ]
+    }
+  }
+}
+
