@@ -65,7 +65,8 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
             return resp
     raise ECMConnectionError('Could not get a response from ECM. Connection Timeout.')
 
-# deprecato
+
+# Deprecated
 
 
 def deploy_ovf_package(ovf_package_id, json_data):

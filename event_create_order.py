@@ -210,7 +210,7 @@ class CreateOrder(Event):
 
                 ex_input['extensions-input']['service-instance'].append(service_instance)
 
-                current_ntw_policy.append(customer_id + '-' + vnf_type_el)
+                current_ntw_policy.append('default-domain:cpower:' + customer_id + '-' + vnf_type_el)
 
             ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
             ex_input['extensions-input']['network-policy']['policy-rule'] = current_ntw_policy
@@ -266,7 +266,7 @@ class CreateOrder(Event):
 
                 ex_input['extensions-input']['service-instance'].append(service_instance)
 
-                policy_rule_list.append(customer_id + '-' + vnf_type_el)
+                policy_rule_list.append('default-domain:cpower:' + customer_id + '-' + vnf_type_el)
 
             ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
             ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l

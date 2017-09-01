@@ -69,10 +69,10 @@ class CreateOrderService(Event):
 
         service_id, service_name = create_service['id'], create_service['name']
 
-        # We got everything we need to proceed:
+        # We got all we need to proceed:
         # Saving customer and network service info to DB. A check is not needed as NSO should send a
         # createService only in case of first VNF creation. This means there should not be customer and service
-        # already.
+        # already into DB.
         try:
             self.dbman.save_customer((customer_id, customer_id + '_name'))
         except sqlite3.IntegrityError:

@@ -13,7 +13,8 @@ retry_n = 3
 delete_sleep_time_sec = 20
 update_sleep_time_sec = 20
 
-mgmt_vn_id = '5ed79267-c294-4de0-bbf8-5a44533e2d73'
+mgmt_vn_id = '3855c3dd-fba6-49b3-aa23-f3d7230db42c'
+mgmt_vn_name = 'VN_management_VNF'
 
 
 ecm_server_address = "https://pmk03ecm.rmedlab.eld.it.eu.ericsson.se"
@@ -21,6 +22,7 @@ ecm_service_timeout = 10
 ecm_service_api_orders = "/ecm_service/orders/"
 ecm_service_api_vns = "/ecm_service/vns/"
 ecm_service_api_ovfpackage = "/ecm_service/ovfpackages/"
+ecm_service_api_hotpackage = "/ecm_service/hotpackages/"
 ecm_service_api_vdcs = "/ecm_service/vdcs/"
 ecm_service_api_vmvnics = "/ecm_service/vmvnics/"
 ecm_service_api_services = "/ecm_service/services/"

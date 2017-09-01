@@ -105,7 +105,7 @@ class DBManager(object):
         self.query(q, (condition, ), commit)
 
     def set_notify_nso(self, value, vnf_id, commit=True):
-        q = 'UPDATE vnf SET notify_nso=? WHERE vnf_id=?'
+        q = 'UPDATE vnf SET nso_notify=? WHERE vnf_id=?'
         self.query(q, (value, vnf_id), commit)
 
     # VN GROUP table
@@ -159,4 +159,4 @@ class DBManager(object):
         self.query(q, (order_id, ))
 
     def notify_nso(self, service_id, commit=True):
-        self.query('UPDATE network_service SET notify_nso = ? WHERE ntw_service_id = ?', ('YES', service_id), commit)
+        self.query('UPDATE network_service SET nso_notify = ? WHERE ntw_service_id = ?', ('YES', service_id), commit)
