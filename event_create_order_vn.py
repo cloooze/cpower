@@ -9,6 +9,7 @@ from utils import *
 from ecm_exception import *
 import time
 
+
 class CreateOrderVn(Event):
     def __init__(self, order_status, order_id, source_api, order_json):
         super(CreateOrderVn, self).__init__()
@@ -51,15 +52,15 @@ class CreateOrderVn(Event):
 
         for create_vn in create_vn_list:
             vn_id = create_vn['id']
-            vn_name = create_vn['id']
+            vn_name = create_vn['name']
 
             r = ecm_util.invoke_ecm_api(vn_id, c.ecm_service_api_vns, 'GET')
             resp = json.loads(r.text)
 
             vn_vimobject_id = resp['data']['vn']['vimObjectId']
 
-            vn_left_row = ((vn_id, vn_name, vn_vimobject_id) if 'left' in vn_name else None)
-            vn_right_row = ((vn_id, vn_name, vn_vimobject_id) if 'right' in vn_name else None)
+            if 'left' in vn_name: vn_left_row = (vn_id, vn_name, vn_vimobject_id)
+            if 'right' in vn_name: vn_right_row = (vn_id, vn_name, vn_vimobject_id)
 
         # Saving VN info into DB
         self.logger.info('Saving VNs info into DB.')
@@ -71,15 +72,12 @@ class CreateOrderVn(Event):
         hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
         # Preparing the Hot file
-        vnf_type_list = vnf_type_list.split(',')
+        vnf_type = vnf_type_list.split(',')[0]
 
-        # dynamic values
-        for vnf_type in vnf_type_list:
-            hot_file_json['hotPackage']['vapp']['name'] = customer_id + '-' + vnf_type
-            hot_file_json['hotPackage']['vapp']['configData'][0]['value'] = customer_id + '-' + vnf_type
-
-        # fixed values
+        hot_file_json['tenantName'] = c.ecm_tenant_name
         hot_file_json['vdc']['id'] = c.ecm_vdc_id
+        hot_file_json['hotPackage']['vapp']['name'] = vnf_type + '-' + customer_id
+        hot_file_json['hotPackage']['vapp']['configData'][0]['value'] = customer_id + '-' + vnf_type
         hot_file_json['hotPackage']['vapp']['configData'][1]['value'] = customer_id + '-left'
         hot_file_json['hotPackage']['vapp']['configData'][2]['value'] = customer_id + '-right'
         hot_file_json['hotPackage']['vapp']['configData'][3]['value'] = c.mgmt_vn_name
@@ -88,10 +86,11 @@ class CreateOrderVn(Event):
         self.logger.info('Saving temporary VNFs info into DB.')
         i = 1
         for vnf_type in vnf_type_list:
-            row = (get_temp_id(), service_id, vn_group_id, vnf_type, i, 'NO', 'CREATE', 'PENDING')
+            row = (get_temp_id(), service_id, vn_group_id, vnf_type, i, 'NO', 'CREATE', 'PENDING', 'NO')
             self.dbman.save_vnf(row)
             i += 1
 
+        self.logger.info('Depolying HOT package %s' % hot_package_id)
         ecm_util.deploy_hot_package(hot_package_id, hot_file_json)
 
     def rollback(self):

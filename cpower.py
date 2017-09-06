@@ -10,6 +10,7 @@ from event_create_order import CreateOrder
 from event_create_order_vlink import CreateOrderVlink
 from event_create_order_service import CreateOrderService
 from event_create_order_vn import CreateOrderVn
+from event_deploy_hot_package import DeployHotPackage
 from event_delete_vn import DeleteVn
 from event_modify_service import ModifyService
 from event_modify_vlink import ModifyVlink
@@ -83,7 +84,7 @@ def main():
             elif get_order_items('createService', order_json, 1) is not None:
                 event = events['createOrder'][1]
             elif get_order_items('createVn', order_json, 1) is not None:
-                event = events['createVn'][3]
+                event = events['createOrder'][3]
             else:
                 event = events['createOrder'][0]
 

@@ -71,7 +71,7 @@ def deploy_hot_package(hot_package_id, json_data):
     while count < c.retry_n:
         logger.info('Invoking ECM API /ecm_service/hotpackages/%s/deploy - POST' % hot_package_id)
         try:
-            resp = requests.post('%s%s%s/deploy' % (c.ecm_server_address, c.ecm_service_api_ovfpackage, hot_package_id),
+            resp = requests.post('%s%s%s/deploy' % (c.ecm_server_address, c.ecm_service_api_hotpackage, hot_package_id),
                                  data=json.dumps(json_data),
                                  timeout=c.ecm_service_timeout,
                                  headers=get_ecm_api_auth(),
