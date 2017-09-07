@@ -68,7 +68,7 @@ class CreateOrderVn(Event):
         vn_group_id = self.dbman.save_vn_group(vn_row, True)
 
         # DEPLOY HOT PACKAGE HERE
-        hot_package_id = '90e9de59-6ba5-4dc6-8187-23078805d842' # TODO Put it in config
+        hot_package_id = 'dd1f60a6-f735-412c-a10a-4f282a891ca2' # TODO Put it in config
         hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
         # Preparing the Hot file
@@ -85,7 +85,7 @@ class CreateOrderVn(Event):
         # Saving temporary VNF entries into DB
         self.logger.info('Saving temporary VNFs info into DB.')
         i = 1
-        for vnf_type in vnf_type_list:
+        for vnf_type in vnf_type_list.split(','):
             row = (get_temp_id(), service_id, vn_group_id, vnf_type, i, 'NO', 'CREATE', 'PENDING', 'NO')
             self.dbman.save_vnf(row)
             i += 1

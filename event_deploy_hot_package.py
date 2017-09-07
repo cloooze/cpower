@@ -30,16 +30,23 @@ class DeployHotPackage(Event):
         # save everything on DB
         # create VMVNIC
 
+        customer_id = self.order_json['data']['order']['orderItems'][0]['deployHotPackage']['name'].split('-')[1]
+        vnf_type = self.order_json['data']['order']['orderItems'][0]['deployHotPackage']['name'].split('-')[0]
+        vnf_id = self.order_json['data']['order']['orderItems'][0]['deployHotPackage']['id']
+
         if self.order_status == 'ERR':
-            # TODO update VNF row into db with status = ERROR
+            # self.dbman.query('UPDATE vnf SET vnf_status=? WHERE vnf_type=? AND vnf_operation=? AND vnf_status=?', ('ERROR', vnf_type, 'CREATE', 'PENDING'), False)
+            self.dbman.query('DELETE FROM vnf WHERE vnf_type=? AND vnf_operation=? AND vnf_status=?', (vnf_type, 'CREATE', 'PENDING'))
+
+            self.dbman.query('SELECT vn_group_id FROM vnf WHERE vnf_type=? AND vnf_operation=? AND vnf_status=?', (vnf_type, 'CREATE', 'ERROR'))
+            result = self.dbman.fetchone()
+            self.event_params = {'vn_group_id': result['vn_group_id']}
+
             return 'FAILURE'
 
-        customer_id = self.order_json['data']['orderItems'][0]['deployHotPackage']['name'].split('-')[1]
-        vnf_type = self.order_json['data']['orderItems'][0]['deployHotPackage']['name'].split('-')[0]
-        vnf_id = self.order_json['data']['orderItems'][0]['deployHotPackage']['id']
 
         # Updating just created VNF
-        self.dbman.query('UPDATE vnf SET vnf_id=?, status=? WHERE vnf_type=? AND operation=? AND status=?', (vnf_id, 'COMPLETE',  vnf_type, 'CREATE', 'PENDING'), False)
+        self.dbman.query('UPDATE vnf SET vnf_id=?, vnf_status=? WHERE vnf_type=? AND vnf_operation=? AND vnf_status=?', (vnf_id, 'COMPLETE',  vnf_type, 'CREATE', 'PENDING'), False)
 
         # Getting VM details
         r = ecm_util.invoke_ecm_api(vnf_id + '?$expand=vms', c.ecm_service_api_vapps, 'GET')
@@ -81,13 +88,13 @@ class DeployHotPackage(Event):
 
         # Checking if a second hot deploy is required
         self.dbman.query('SELECT vnf_type FROM network_service,vnf WHERE network_service.customer_id=? AND '
-                         'network_service.ntw_service_id=vnf.ntw_service_id AND vnf.operation=? AND vnf.status=?', (customer_id, 'CREATE', 'PENDING'))
+                         'network_service.ntw_service_id=vnf.ntw_service_id AND vnf.vnf_operation=? AND vnf.vnf_status=?', (customer_id, 'CREATE', 'PENDING'))
         result = self.dbman.fetchone()
 
         if result is not None:
             # DEPLOY HOT PACKAGE HERE
             vnf_type = result['vnf_type']
-            hot_package_id = '90e9de59-6ba5-4dc6-8187-23078805d842'  # TODO Put it in config
+            hot_package_id = 'dd1f60a6-f735-412c-a10a-4f282a891ca2'  # TODO Put it in config
             hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
             # Preparing the Hot file
@@ -103,5 +110,19 @@ class DeployHotPackage(Event):
             ecm_util.deploy_hot_package(hot_package_id, hot_file_json)
 
     def rollback(self):
-        pass
+        self.dbman.rollback() # to rollback manual insert into db in case of error
+
+        self.logger.info('Rollbacking VNs creation...')
+
+        vn_group_id = self.event_params['vn_gruop_id']
+
+        ecm_util.invoke_ecm_api(vn_group_id, c.ecm_service_api_vns, 'DELETE')
+
+        self.dbman.delete_vn_group(vn_group_id)
+
+
+        # TODO
+        # manually delete VN and NETWORK SERVICE(?)
+
+
 
