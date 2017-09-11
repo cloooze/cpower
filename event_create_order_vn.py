@@ -68,7 +68,7 @@ class CreateOrderVn(Event):
         vn_group_id = self.dbman.save_vn_group(vn_row, True)
 
         # DEPLOY HOT PACKAGE HERE
-        hot_package_id = 'dd1f60a6-f735-412c-a10a-4f282a891ca2' # TODO Put it in config
+        hot_package_id = '9c127b11-10e2-4148-9a67-411804c35644' # TODO Put it in config
         hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
         # Preparing the Hot file

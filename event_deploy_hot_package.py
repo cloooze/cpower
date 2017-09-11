@@ -35,7 +35,7 @@ class DeployHotPackage(Event):
         vnf_id = self.order_json['data']['order']['orderItems'][0]['deployHotPackage']['id']
 
         if self.order_status == 'ERR':
-            self.dbman.query('SELECT vn_group_id,vn_left_id,vn_right_id FROM vnf, vn WHERE vnf.vnf_type=? AND vnf.vnf_operation=? AND '
+            self.dbman.query('SELECT vn_group_id,vn_left_id,vn_right_id FROM vnf,vn_group WHERE vnf.vnf_type=? AND vnf.vnf_operation=? AND '
                              'vnf.vnf_status=? AND vnf.vn_group_id=vn.vn_group_id', (vnf_type, 'CREATE', 'PENDING'))
             result = self.dbman.fetchone()
             self.event_params = {'vn_group_id': result['vn_group_id'], 'vn_left_id': result['vn_left_id'], 'vn_right_id': result['vn_right_id']}
@@ -112,14 +112,14 @@ class DeployHotPackage(Event):
         # vn vimobject id right
 
         # Getting service_id
-        self.dbman.query('SELECT ntw_service_id FROM vnf WHERE vnf_id=?', (vnf_id))
+        self.dbman.query('SELECT ntw_service_id FROM vnf WHERE vnf_id=?', (vnf_id,))
         result = self.dbman.fetchone()
         service_id = result['ntw_service_id']
 
         # Getting vnf type list
-        self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id=?', (service_id))
+        self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id=?', (service_id,))
         result = self.dbman.fetchall()
-        vnf_type_list = (r['vnf_type'] for r in result)
+        vnf_type_list = list(r['vnf_type'] for r in result)
         self.logger.info('DEBUG ---- VNF TYPE LIST generata %s' % vnf_type_list)
 
         # Building vn names
@@ -127,13 +127,13 @@ class DeployHotPackage(Event):
         vn_name_r = customer_id + '-' + 'right'
 
         # Getting vn vimobject IDs
-        self.dbman.query('SELECT vn_left_vimobject_id,vn_right_vimobject_id FROM vn_group,vnf WHERE vnf.vnf_id=? AND vnf.vn_group_id = vn_group.vn_group_id')
+        self.dbman.query('SELECT vn_left_vimobject_id,vn_right_vimobject_id FROM vn_group,vnf WHERE vnf.vnf_id=? AND vnf.vn_group_id = vn_group.vn_group_id', (vnf_id,))
         result = self.dbman.fetchone()
         vn_vimobject_id_l = result['vn_left_vimobject_id']
         vn_vimobject_id_r = result['vn_right_vimobject_id']
 
         # Getting route targets
-        self.dbman.query('SELECT rt_left,rt_right,rt_mgmt FROM network_service WHERE ntw_service_id=?', (service_id))
+        self.dbman.query('SELECT rt_left,rt_right,rt_mgmt FROM network_service WHERE ntw_service_id=?', (service_id,))
         result = self.dbman.fetchone()
         rt_left = result['rt_left']
         rt_right = result['rt_right']
@@ -151,13 +151,17 @@ class DeployHotPackage(Event):
         policy_rule_list = list()
 
         for vnf_type_el in vnf_type_list:
-            vm_vnic_name_left = customer_id + '-' + vnf_type_el + '-left'
-            self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic WHERE vm_vnic_name=?', (vm_vnic_name_left,))
-            vm_vnic_vimobject_id_left = self.dbman.fetchone()['vm_vnic_vimobject_id']
+            # Getting vm_vnic_vimobject_id of left and right
+            self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
+                             'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND '
+                             'vmvnic.vm_vnic_name LIKE ?', (service_id, vnf_type, 'right%'))
+            vm_vnic_vimobject_id_l = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
-            vm_vnic_name_right = customer_id + '-' + vnf_type_el + '-right'
-            self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic WHERE vm_vnic_name=?', (vm_vnic_name_right,))
-            vm_vnic_vimobject_id_right = self.dbman.fetchone()['vm_vnic_vimobject_id']
+            self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
+                             'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND vmvnic.vm_vnic_name LIKE ?',
+                             (service_id, vnf_type, 'right%'))
+            vm_vnic_vimobject_id_r = self.dbman.fetchone()['vm_vnic_vimobject_id']
+
 
             service_instance = {
                 'operation': 'create',
@@ -170,8 +174,8 @@ class DeployHotPackage(Event):
                     'si-name': customer_id + '-' + vnf_type_el
                 },
                 'update-vmvnic': {
-                    'left': vm_vnic_vimobject_id_left,
-                    'right': vm_vnic_vimobject_id_right
+                    'left': vm_vnic_vimobject_id_l,
+                    'right': vm_vnic_vimobject_id_r
                 }
             }
 
