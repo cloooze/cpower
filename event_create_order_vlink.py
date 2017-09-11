@@ -25,7 +25,7 @@ class CreateOrderVlink(Event):
     def notify(self):
         service_id = self.event_params['service_id']
 
-        self.dbman.query('SELECT customer_id, notify_nso FROM network_service WHERE ntw_service_id = ?', (service_id, ))
+        self.dbman.query('SELECT customer_id FROM network_service WHERE ntw_service_id = ?', (service_id, ))
         customer_id = self.dbman.fetchone()['customer_id']
 
         if self.order_status == 'ERR':
@@ -40,13 +40,13 @@ class CreateOrderVlink(Event):
                 'SELECT vmvnic.vm_vnic_ip FROM vmvnic, vnf, vm WHERE vnf.ntw_service_id = ? AND vnf.vnf_id = '
                 'vm.vnf_id AND vm.vm_id = vmvnic.VM_ID AND vnf.VNF_POSITION = (SELECT MIN(vnf.VNF_POSITION) FROM '
                 'vnf WHERE ntw_service_id = ?) AND vmvnic.VM_VNIC_NAME LIKE ?',
-                (service_id, service_id, '%left')).fetchone()['vm_vnic_ip']
+                (service_id, service_id, '%left%')).fetchone()['vm_vnic_ip']
 
             chain_right_ip = self.dbman.query(
                 'SELECT vmvnic.vm_vnic_ip FROM vmvnic, vnf, vm WHERE vnf.ntw_service_id = ? AND vnf.vnf_id = '
                 'vm.vnf_id AND vm.vm_id = vmvnic.VM_ID AND vnf.VNF_POSITION = (SELECT MAX(vnf.VNF_POSITION) FROM '
                 'vnf WHERE ntw_service_id = ?) AND vmvnic.VM_VNIC_NAME LIKE ?',
-                (service_id, service_id, '%right')).fetchone()['vm_vnic_ip']
+                (service_id, service_id, '%right%')).fetchone()['vm_vnic_ip']
 
             nso_vnf_list = list()
             vnf_id_list = list()

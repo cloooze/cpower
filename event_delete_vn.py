@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from event import Event
-import nso_util
+from utils import *
 
 INTERNAL_ERROR = '100'
 REQUEST_ERROR = '200'
@@ -26,7 +26,7 @@ class DeleteVn(Event):
             self.logger.error(self.order_json['data']['order']['orderMsgs'])
             return 'FAILURE'
 
-        delete_vn = self.get_order_items('deleteVn', self.order_json)[0]
+        delete_vn = get_order_items('deleteVn', self.order_json)[0]
 
         vn_id = delete_vn['id']
 

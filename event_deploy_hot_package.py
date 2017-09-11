@@ -35,13 +35,17 @@ class DeployHotPackage(Event):
         vnf_id = self.order_json['data']['order']['orderItems'][0]['deployHotPackage']['id']
 
         if self.order_status == 'ERR':
-            self.dbman.query('SELECT vn_group_id,vn_left_id,vn_right_id FROM vnf,vn_group WHERE vnf.vnf_type=? AND vnf.vnf_operation=? AND '
-                             'vnf.vnf_status=? AND vnf.vn_group_id=vn.vn_group_id', (vnf_type, 'CREATE', 'PENDING'))
+            self.dbman.query('SELECT vnf.service_id,vn_group.vn_group_id,vn_left_id,vn_right_id FROM vnf,vn_group WHERE '
+                             'vnf.vnf_type=? AND vnf.vnf_operation=? AND vnf.vnf_status=? AND '
+                             'vnf.vn_group_id=vn_group.vn_group_id', (vnf_type, 'CREATE', 'PENDING'))
             result = self.dbman.fetchone()
-            self.event_params = {'vn_group_id': result['vn_group_id'], 'vn_left_id': result['vn_left_id'], 'vn_right_id': result['vn_right_id']}
+            self.event_params = {'service_id': result['service_id'],
+                                 'vn_group_id': result['vn_group_id'],
+                                 'vn_left_id': result['vn_left_id'],
+                                 'vn_right_id': result['vn_right_id']}
 
             # self.dbman.query('UPDATE vnf SET vnf_status=? WHERE vnf_type=? AND vnf_operation=? AND vnf_status=?', ('ERROR', vnf_type, 'CREATE', 'PENDING'), False)
-            self.dbman.query('DELETE FROM vnf WHERE vnf_type=? AND vnf_operation=? AND vnf_status=?', (vnf_type, 'CREATE', 'PENDING'))
+            self.dbman.query('DELETE FROM vnf WHERE vnf_operation=? AND vnf_status=?', ('CREATE', 'PENDING'))
 
             return 'FAILURE'
 
@@ -76,7 +80,7 @@ class DeployHotPackage(Event):
 
         self.dbman.commit()
 
-        self.logger.info('All information about VM and VMVNICs successfully stored into DB.')
+        self.logger.info('VM and VMVNICs information successfully stored into DB.')
 
         # Checking if a second hot deploy is required
         self.dbman.query('SELECT vnf_type FROM network_service,vnf WHERE network_service.customer_id=? AND '
@@ -86,7 +90,7 @@ class DeployHotPackage(Event):
         if result is not None:
             # DEPLOY SECOND HOT PACKAGE HERE
             vnf_type = result['vnf_type']
-            hot_package_id = 'dd1f60a6-f735-412c-a10a-4f282a891ca2'  # TODO Put it in config
+            hot_package_id = '9c127b11-10e2-4148-9a67-411804c35644'  # TODO Put it in config
             hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
             # Preparing the Hot file
@@ -100,6 +104,7 @@ class DeployHotPackage(Event):
 
             self.logger.info('Depolying HOT package %s' % hot_package_id)
             ecm_util.deploy_hot_package(hot_package_id, hot_file_json)
+            return
 
 
         # CREATE VLINK
@@ -154,12 +159,12 @@ class DeployHotPackage(Event):
             # Getting vm_vnic_vimobject_id of left and right
             self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
                              'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND '
-                             'vmvnic.vm_vnic_name LIKE ?', (service_id, vnf_type, 'right%'))
+                             'vmvnic.vm_vnic_name LIKE ?', (service_id, vnf_type_el, 'left%'))
             vm_vnic_vimobject_id_l = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
             self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
                              'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND vmvnic.vm_vnic_name LIKE ?',
-                             (service_id, vnf_type, 'right%'))
+                             (service_id, vnf_type_el, 'right%'))
             vm_vnic_vimobject_id_r = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
 
@@ -205,12 +210,27 @@ class DeployHotPackage(Event):
         if self.order_status == 'ERR':
             self.dbman.rollback() # to rollback manual insert into db in case of error
 
-            self.logger.info('Rollbacking VNs creation...')
+            self.logger.info('Rollbacking...')
+
+            service_id = self.event_params['service_id']
+            self.dbman.query('SELECT vnf_id,vm_id FROM vnf,vm WHERE vnf.ntw_service_id=? AND vnf.status=? AND '
+                             'vnf.operation=? AND nso_notify=?', (service_id, 'CREATE', 'COMPLETE', 'NO'))
+            result = self.dbman.fetchall()
+
+            for r in result:
+                vnf_id = r['vnf_id']
+                vm_id = r['vm_id']
+
+                self.logger.info('Deleting VAPP %s' % vnf_id)
+                ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
+                self.logger.info('Deleting VM %s' % vm_id)
+                ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'DELETE')
 
             vn_group_id = self.event_params['vn_group_id']
             vn_left_id = self.event_params['vn_left_id']
             vn_right_id = self.event_params['vn_right_id']
 
+            self.logger.info('Deleting VNs')
             ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE') # what if it goes wrong?? :(
             ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
 

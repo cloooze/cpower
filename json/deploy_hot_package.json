@@ -9,7 +9,7 @@
       "configData": [
         {
           "name": "vm1_name",
-          "value": "<customer_id>-<vnf_type>"
+          "value": "<vm_name>"
         },
         {
           "name": "vn_left",
