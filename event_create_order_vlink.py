@@ -105,7 +105,7 @@ class CreateOrderVlink(Event):
     def rollback(self):
         if self.order_status == 'COM':
             return
-                
+
         self.logger.info('Could not create VLink. Rollbacking VNFs...')
         # Getting the ntw_policy_rule list
         service_id = self.event_params['service_id']

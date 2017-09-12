@@ -67,8 +67,8 @@ class ModifyService(Event):
             if vnf not in target_vnf_type_list:
                 delete_vnf.append(vnf.strip())
 
-        self.logger.info('VNF to add to the existing Network Service: %s' % add_vnf)
-        self.logger.info('VNF to delete (if adding VNF, the delete will be done after the creation): %s' % delete_vnf)
+        self.logger.info('VNFs to add to the existing Network Service: %s' % add_vnf)
+        self.logger.info('VNFs to delete: %s' % delete_vnf)
 
         if len(add_vnf) > 0:
             # Getting vn_group_id and max position

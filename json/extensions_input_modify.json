@@ -5,10 +5,6 @@
 			"operation": "update",
 			"policy_name": "",
 			"policy-rule": []
-		},
-		"update-vn-RT": {
-			"right_VN": "",
-			"left_VN": ""
 		}
 	}
 }

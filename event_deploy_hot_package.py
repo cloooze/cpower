@@ -151,65 +151,122 @@ class DeployHotPackage(Event):
         rt_right = result['rt_right']
         rt_mgmt = result['rt_mgmt']
 
-        self.logger.info('Creating VLINK object...')
+        self.dbman.query('SELECT vlink_id FROM network_service WHERE ntw_service_id=?', (service_id,))
+        result = self.dbman.fetchone()
 
-        vlink_json = load_json_file('json/create_vlink.json')
-        vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
-        vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
+        if result is None:
+            self.logger.info('Creating VLINK object...')
 
-        ex_input = load_json_file('json/extensions_input_create.json')
+            vlink_json = load_json_file('json/create_vlink.json')
+            vlink_json['orderItems'][0]['createVLink']['name'] = customer_id + '-SDN-policy'
+            vlink_json['orderItems'][0]['createVLink']['service']['id'] = service_id
 
-        # In case of multiple VNF, duplicating the entire service-instance tag
-        policy_rule_list = list()
+            ex_input = load_json_file('json/extensions_input_create.json')
 
-        for vnf_type_el in vnf_type_list:
-            # Getting vm_vnic_vimobject_id of left and right
-            self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
-                             'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND '
-                             'vmvnic.vm_vnic_name LIKE ?', (service_id, vnf_type_el, 'left%'))
-            vm_vnic_vimobject_id_l = self.dbman.fetchone()['vm_vnic_vimobject_id']
+            # In case of multiple VNF, duplicating the entire service-instance tag
+            policy_rule_list = list()
 
-            self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
-                             'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND vmvnic.vm_vnic_name LIKE ?',
-                             (service_id, vnf_type_el, 'right%'))
-            vm_vnic_vimobject_id_r = self.dbman.fetchone()['vm_vnic_vimobject_id']
+            for vnf_type_el in vnf_type_list:
+                # Getting vm_vnic_vimobject_id of left and right
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
+                                 'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND '
+                                 'vmvnic.vm_vnic_name LIKE ?', (service_id, vnf_type_el, 'left%'))
+                vm_vnic_vimobject_id_l = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
-            service_instance = {
-                'operation': 'create',
-                'si_name': customer_id + '-' + vnf_type_el,
-                'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
-                'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
-                'service_template': 'cpower-template',
-                'port-tuple': {
-                    'name': 'porttuple-' + customer_id + '-' + vnf_type_el,
-                    'si-name': customer_id + '-' + vnf_type_el
-                },
-                'update-vmvnic': {
-                    'left': vm_vnic_vimobject_id_l,
-                    'right': vm_vnic_vimobject_id_r
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
+                                 'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND vmvnic.vm_vnic_name LIKE ?',
+                                 (service_id, vnf_type_el, 'right%'))
+                vm_vnic_vimobject_id_r = self.dbman.fetchone()['vm_vnic_vimobject_id']
+
+                service_instance = {
+                    'operation': 'create',
+                    'si_name': customer_id + '-' + vnf_type_el,
+                    'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
+                    'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
+                    'service_template': 'cpower-template',
+                    'port-tuple': {
+                        'name': 'porttuple-' + customer_id + '-' + vnf_type_el,
+                        'si-name': customer_id + '-' + vnf_type_el
+                    },
+                    'update-vmvnic': {
+                        'left': vm_vnic_vimobject_id_l,
+                        'right': vm_vnic_vimobject_id_r
+                    }
                 }
-            }
 
-            ex_input['extensions-input']['service-instance'].append(service_instance)
+                ex_input['extensions-input']['service-instance'].append(service_instance)
 
-            policy_rule_list.append('default-domain:cpower:' + customer_id + '-' + vnf_type_el)
+                policy_rule_list.append('default-domain:cpower:' + customer_id + '-' + vnf_type_el)
 
-        ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
-        ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
-        ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
+            ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
+            ex_input['extensions-input']['network-policy']['src_address'] = 'default-domain:cpower:' + vn_name_l
+            ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
 
-        ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
-        ex_input['extensions-input']['update-vn-RT']['right_RT'] = rt_right.split(',')
-        ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
-        ex_input['extensions-input']['update-vn-RT']['left_RT'] = rt_left.split(',')
-        ex_input['extensions-input']['update-vn-RT'][
-            'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
+            ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
+            ex_input['extensions-input']['update-vn-RT']['right_RT'] = rt_right.split(',')
+            ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
+            ex_input['extensions-input']['update-vn-RT']['left_RT'] = rt_left.split(',')
+            ex_input['extensions-input']['update-vn-RT'][
+                'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
 
-        ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
+            ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
 
-        vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
 
-        ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+            ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', vlink_json)
+        else:
+            self.logger.info('Modifying VLINK object...')
+
+            vlink_json = load_json_file('json/modify_vlink.json')
+
+            ex_input = load_json_file('json/extensions_input_modify.json')
+
+            # In case of multiple VNF, duplicating the entire service-instance tag
+            policy_rule_list = list()
+
+            self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id=? AND nso_notify=?', (service_id, 'NO'))
+            result = self.dbman.fetchall()
+            vnf_type_list = list(r['vnf_type'] for r in result)
+
+            for vnf_type_el in vnf_type_list:
+                # Getting vm_vnic_vimobject_id of left and right
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
+                                 'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND '
+                                 'vmvnic.vm_vnic_name LIKE ?', (service_id, vnf_type_el, 'left%'))
+                vm_vnic_vimobject_id_l = self.dbman.fetchone()['vm_vnic_vimobject_id']
+
+                self.dbman.query('SELECT vm_vnic_vimobject_id FROM vmvnic,vm,vnf WHERE vnf.ntw_service_id=? AND '
+                                 'vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id AND vm.vm_id=vmvnic.vm_id AND vmvnic.vm_vnic_name LIKE ?',
+                                 (service_id, vnf_type_el, 'right%'))
+                vm_vnic_vimobject_id_r = self.dbman.fetchone()['vm_vnic_vimobject_id']
+
+                service_instance = {
+                    'operation': 'create',
+                    'si_name': customer_id + '-' + vnf_type_el,
+                    'left_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_l,
+                    'right_virtual_network_fqdn': 'default-domain:cpower:' + vn_name_r,
+                    'service_template': 'cpower-template',
+                    'port-tuple': {
+                        'name': 'porttuple-' + customer_id + '-' + vnf_type_el,
+                        'si-name': customer_id + '-' + vnf_type_el
+                    },
+                    'update-vmvnic': {
+                        'left': vm_vnic_vimobject_id_l,
+                        'right': vm_vnic_vimobject_id_r
+                    }
+                }
+
+                ex_input['extensions-input']['service-instance'].append(service_instance)
+
+                policy_rule_list.append('default-domain:cpower:' + customer_id + '-' + vnf_type_el)
+
+            ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
+            ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
+
+            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+
+            self.dbman.query('SELECT vlink_id FROM network_service WHERE ntw_service_id=?', (service_id, ))
+            ecm_util.invoke_ecm_api(result['vlink_id'], c.ecm_service_api_vlinks, 'PUT', vlink_json)
 
     def rollback(self):
         # if self.order_status == 'ERR' or self.event_params['rollback'] == 'YES':
