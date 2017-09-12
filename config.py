@@ -16,6 +16,8 @@ update_sleep_time_sec = 20
 mgmt_vn_id = '3855c3dd-fba6-49b3-aa23-f3d7230db42c'
 mgmt_vn_name = 'VN_management_VNF'
 
+hot_package_id = 'a4246ed1-b1ea-4979-9e12-d4636e76186b'
+
 
 ecm_server_address = "https://pmk03ecm.rmedlab.eld.it.eu.ericsson.se"
 ecm_service_timeout = 10

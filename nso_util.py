@@ -148,10 +148,11 @@ def notify_nso(operation, data):
 
         h = {'Content-Type': 'application/vnd.yang.data+json'}
         try:
-            resp = requests.post(nso_endpoint, timeout=c.nso_service_timeout,
-                                  auth=(c.nso_auth_username, c.nso_auth_password),
-                                  headers=h, data=json.dumps(data, sort_keys=True))
-            resp.raise_for_status()
+            logger.info("--- MOCK NSO NOTIFICATION ---")
+            resp = None
+            # Commented for TESTING PURPOSE
+            #resp = requests.post(nso_endpoint, timeout=c.nso_service_timeout, auth=(c.nso_auth_username, c.nso_auth_password), headers=h, data=json.dumps(data, sort_keys=True))
+            #resp.raise_for_status()
         except requests.exceptions.HTTPError as r:
             logger.error(r)
             raise NSOConnectionError

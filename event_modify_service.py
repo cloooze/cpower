@@ -88,7 +88,7 @@ class ModifyService(Event):
                 row = (get_temp_id(), service_id, vn_group_id, vnf_type, int(max_position) + i, 'NO', 'CREATE', 'PENDING', 'NO')
                 self.dbman.save_vnf(row)
 
-                hot_package_id = '9c127b11-10e2-4148-9a67-411804c35644'  # TODO Put it in config
+                hot_package_id = c.hot_package_id  # TODO Put it in config
                 hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
                 # Preparing the Hot file
@@ -106,7 +106,7 @@ class ModifyService(Event):
         if len(delete_vnf) > 0:
             for vnf_type in delete_vnf:
                 # Getting vnf_id and vm_id to delete
-                self.dbman.query('SELECT vnf_id,vm_id FROM vnf,vm WHERE vnf.ntw_service_id=? AND vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id',
+                self.dbman.query('SELECT vnf.vnf_id,vm.vm_id FROM vnf,vm WHERE vnf.ntw_service_id=? AND vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id',
                                  (service_id, vnf_type))
                 result = self.dbman.fetchone()
                 vnf_id = result['vnf_id']

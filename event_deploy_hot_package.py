@@ -98,7 +98,7 @@ class DeployHotPackage(Event):
         if result is not None:
             # DEPLOY SECOND HOT PACKAGE HERE
             vnf_type = result['vnf_type']
-            hot_package_id = '9c127b11-10e2-4148-9a67-411804c35644'  # TODO Put it in config
+            hot_package_id = c.hot_package_id  # TODO Put it in config
             hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
             # Preparing the Hot file
@@ -214,9 +214,8 @@ class DeployHotPackage(Event):
     def rollback(self):
         # if self.order_status == 'ERR' or self.event_params['rollback'] == 'YES':
         if self.order_status == 'ERR':
+            self.logger.info('Checking if VNF rollback is needed...')
             self.dbman.rollback() # to rollback manual insert into db in case of error
-
-            self.logger.info('Rollbacking...')
 
             service_id = self.event_params['service_id']
             self.dbman.query('SELECT vnf.vnf_id,vm.vm_id FROM vnf,vm WHERE vnf.ntw_service_id=? AND vnf.vnf_status=? AND '
@@ -236,13 +235,15 @@ class DeployHotPackage(Event):
                 self.logger.info('Deleting VAPP %s' % vnf_id)
                 ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
 
-            vn_group_id = self.event_params['vn_group_id']
-            vn_left_id = self.event_params['vn_left_id']
-            vn_right_id = self.event_params['vn_right_id']
+            if result is not None:
+                vn_left_id = self.event_params['vn_left_id']
+                vn_right_id = self.event_params['vn_right_id']
 
-            self.logger.info('Deleting VNs')
-            ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE') # what if it goes wrong?? :(
-            ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
+                self.logger.info('Deleting VNs')
+                ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE') # what if it goes wrong?? :(
+                ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
+            else:
+                self.logger.info('Nothing to rollback.')
 
 
 

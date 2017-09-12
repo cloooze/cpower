@@ -37,7 +37,7 @@ class DeleteVn(Event):
             self.logger.info('Vn group associated to VN [%s] already deleted.' % (vn_id))
         else:
             vn_group_id = row['vn_group_id']
-            self.dbman.delete_vn_group(vn_group_id)
+            self.dbman.delete_vn_group((vn_group_id,))
 
         # TODO notify NSO success with operation DELETE_SERVICE
 

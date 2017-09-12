@@ -77,7 +77,6 @@ class CreateOrderVlink(Event):
 
             placeholders = ','.join('?' for vnf in vnf_id_list)
             self.dbman.query('UPDATE vnf SET nso_notify=? WHERE vnf_id IN (%s)' % placeholders, tuple(['YES']) + tuple(vnf_id_list))
-            self.dbman.notify_nso(service_id)
 
     def execute(self):
         create_vlink = get_order_items('createVLink', self.order_json, 1)
@@ -102,11 +101,12 @@ class CreateOrderVlink(Event):
             self.logger.info('VLink %s with id %s succesfully created.' % (vlink_name, vlink_id))
             self.logger.info('Policy Rule %s successfully stored into database.' % policy_rule)
 
+    # TODO THIS best be reimplmeneted - as it is it will remove all the VNF attached to the service
     def rollback(self):
         if self.order_status == 'COM':
             return
-
-        self.logger.info('Could not create VLink. Rollbacking VNFs creation...')
+                
+        self.logger.info('Could not create VLink. Rollbacking VNFs...')
         # Getting the ntw_policy_rule list
         service_id = self.event_params['service_id']
 
