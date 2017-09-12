@@ -6,6 +6,7 @@ import config as c
 from ecm_exception import *
 from event import Event
 from utils import *
+import time
 
 
 class DeployHotPackage(Event):
@@ -173,7 +174,6 @@ class DeployHotPackage(Event):
                              (service_id, vnf_type_el, 'right%'))
             vm_vnic_vimobject_id_r = self.dbman.fetchone()['vm_vnic_vimobject_id']
 
-
             service_instance = {
                 'operation': 'create',
                 'si_name': customer_id + '-' + vnf_type_el,
@@ -229,6 +229,9 @@ class DeployHotPackage(Event):
 
                 self.logger.info('Deleting VM %s' % vm_id)
                 ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'DELETE')
+
+                self.logger.info('Waiting 40 secs to let VM remove operation to complete.')
+                time.sleep(40)
 
                 self.logger.info('Deleting VAPP %s' % vnf_id)
                 ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')

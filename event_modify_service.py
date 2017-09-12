@@ -25,10 +25,6 @@ class ModifyService(Event):
             # TODO need to handle the modifyService failure scenario
 
     def execute(self):
-        """ The modifyService might be invoked in several scenarios:
-        1) NSO wants to add/delete/switch a VNFs
-        2) Custom Workflow wants to attach/detach a VNF to/from a NetworkService """
-
         modify_service = get_order_items('modifyService', self.order_json, 1)
         service_id = modify_service['id']
 
@@ -75,98 +71,55 @@ class ModifyService(Event):
         self.logger.info('VNF to delete (if adding VNF, the delete will be done after the creation): %s' % delete_vnf)
 
         if len(add_vnf) > 0:
-            # Sending order for new vnf to create
-            order_items = list()
-
-            csr1000_image_name = 'csr1000v-universalk9.16.04.01'
-            fortinet_image_name = 'todo'
-            vmhd_name = '2vcpu_4096MBmem_40GBdisk'
-
-            # Getting existing VN_LFT_ID and VN_RIGHT_ID for this network service
-            self.dbman.query('SELECT vn_left_id, vn_right_id '
-                             'FROM vnf, vn_group '
-                             'WHERE vnf.ntw_service_id = ? '
-                             'AND vnf.vn_group_id = vn_group.vn_group_id', (service_id, ))
-            res = self.dbman.fetchone()
-            vn_left_id = res['vn_left_id']
-            vn_right_id = res['vn_right_id']
-
-            i = 1
+            # Getting vn_group_id and max position
+            self.dbman.query(
+                'SELECT vn_group_id,max(vnf_position) as vnf_position FROM vnf WHERE ntw_service_id = ? AND vnf_operation = ? AND vnf_status = ?',
+                (service_id, 'CREATE', 'COMPLETE'))
+            result = self.dbman.fetchone()
+            vn_group_id = result['vn_group_id']
+            max_position = result['vnf_position']
+            i = 0
             for vnf_type in add_vnf:
-                order_items.append(get_create_vapp(str(i), customer_id + '-' + vnf_type, c.ecm_vdc_id, 'Cpower', service_id))
-                order_items.append(get_create_vm(str(i + 1), c.ecm_vdc_id, customer_id + vnf_type, csr1000_image_name, vmhd_name, str(i)))
-                order_items.append(get_create_vmvnic(str(i + 2), customer_id + '-' + vnf_type + '-left', '', str(i + 1), 'desc', vn_left_id))
-                order_items.append(get_create_vmvnic(str(i + 3), customer_id + '-' + vnf_type + '-right', '', str(i + 1), 'desc', vn_right_id))
-                order_items.append(get_create_vmvnic(str(i + 4), customer_id + '-' + vnf_type + '-mgmt', '', str(i + 1), 'desc', c.mgmt_vn_id))
-                i += 5
+                i = i + 1
 
-                # Saving temporary VNFs to ADD into DB
-                self.logger.info('Saving temporary VNF [%s] to ADD into database' % vnf_type)
-                row = (customer_id + vnf_type + '_' + get_temp_id(), service_id, '', vnf_type, target_vnf_type_list.index(vnf_type) + 1, 'NO', 'CREATE', 'PENDING', 'NO')
+                # Saving temporary VNF entries into DB
+                self.logger.info('Saving temporary VNFs info into DB.')
+
+                row = (get_temp_id(), service_id, vn_group_id, vnf_type, int(max_position) + i, 'NO', 'CREATE', 'PENDING', 'NO')
                 self.dbman.save_vnf(row)
 
-            order = dict(
-                {
-                    "tenantName": c.ecm_tenant_name,
-                    "customOrderParams": [
-                        get_cop('service_id', service_id),
-                        get_cop('customer_id', customer_id)
-                    ],
-                    "orderItems": order_items
-                }
-            )
+                hot_package_id = '9c127b11-10e2-4148-9a67-411804c35644'  # TODO Put it in config
+                hot_file_json = load_json_file('./json/deploy_hot_package.json')
 
-            if len(delete_vnf) > 0:
-                order['customOrderParams'].append(get_cop('next_action','delete_vnf'))
-                order['customOrderParams'].append(get_cop('vnf_list', ','.join(vnf for vnf in delete_vnf)))
+                # Preparing the Hot file
+                hot_file_json['tenantName'] = c.ecm_tenant_name
+                hot_file_json['vdc']['id'] = c.ecm_vdc_id
+                hot_file_json['hotPackage']['vapp']['name'] = vnf_type + '-' + customer_id
+                hot_file_json['hotPackage']['vapp']['configData'][0]['value'] = customer_id + '-' + vnf_type
+                hot_file_json['hotPackage']['vapp']['configData'][1]['value'] = customer_id + '-left'
+                hot_file_json['hotPackage']['vapp']['configData'][2]['value'] = customer_id + '-right'
+                hot_file_json['hotPackage']['vapp']['configData'][3]['value'] = c.mgmt_vn_name
 
-                # Saving temporary VNFs to ADD into DB
-                for vnf_type in delete_vnf:
-                    self.logger.info('Setting VNF [%s] to DELETE into database' % vnf_type)
-                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_type = ? AND '
-                                     'vnf_operation = ? AND vnf_status = ? AND ntw_service_id = ?', ('DELETE',
-                                                                                                     'PENDING',
-                                                                                                     vnf_type,
-                                                                                                     'CREATE',
-                                                                                                     'COMPLETE',
-                                                                                                     service_id))
+                self.logger.info('Depolying HOT package %s' % hot_package_id)
+                ecm_util.deploy_hot_package(hot_package_id, hot_file_json)
 
-            ecm_util.invoke_ecm_api(None, c.ecm_service_api_orders, 'POST', order)
+        if len(delete_vnf) > 0:
+            for vnf_type in delete_vnf:
+                # Getting vnf_id and vm_id to delete
+                self.dbman.query('SELECT vnf_id,vm_id FROM vnf,vm WHERE vnf.ntw_service_id=? AND vnf.vnf_type=? AND vnf.vnf_id=vm.vnf_id',
+                                 (service_id, vnf_type))
+                result = self.dbman.fetchone()
+                vnf_id = result['vnf_id']
+                vm_id = result['vm_id']
 
-        elif len(delete_vnf) > 0:  # Doing the delete here ONLY if there is nothing to add
-            placeholders = ','.join('?' for vnf in delete_vnf)
+                self.logger.info('Deleting VM %s' % vm_id)
+                ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'DELETE')
 
-            # Dissociating VNFs to delete from Network Service first
-            self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type NOT IN (%s)' % placeholders,
-                             tuple([service_id]) + tuple(delete_vnf))
-            res = self.dbman.fetchall()
+                self.logger.info('Waiting 40 secs to let VM remove operation to complete.')
+                time.sleep(40)
 
-            if res is not None:
-                self.logger.info('Dissociating VNFs to delete from Network Service %s.' % service_id)
-                vnf_id_to_keep = list(vnf['vnf_id'] for vnf in res)
-
-                modify_service_json = load_json_file('./json/modify_service.json')
-
-                for vnf_id in vnf_id_to_keep:
-                    modify_service_json['vapps'].append({'id': vnf_id})
-
-                modify_service_json['customInputParams'].append(get_cop('next_action', 'skip'))
-
-                ecm_util.invoke_ecm_api(service_id, c.ecm_service_api_services, 'PUT', modify_service_json)
-
-                time.sleep(10)
-
-            # Deleting the VNFs
-            self.dbman.query('SELECT vnf_id FROM vnf WHERE ntw_service_id = ? AND vnf_type IN (%s)' % placeholders,
-                             tuple([service_id]) + tuple(delete_vnf))
-            res = self.dbman.fetchall()
-
-            if res is not None:
-                for vnf in res:
-                    vnf_id = vnf['vnf_id']
-                    ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
-                    self.dbman.query('UPDATE vnf SET vnf_operation = ?, vnf_status = ? WHERE vnf_id = ?',
-                                     ('DELETE', 'PENDING', vnf_id))
+                self.logger.info('Deleting VAPP %s' % vnf_id)
+                ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
 
     def rollback(self):
         pass
