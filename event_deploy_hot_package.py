@@ -152,9 +152,9 @@ class DeployHotPackage(Event):
         rt_mgmt = result['rt_mgmt']
 
         self.dbman.query('SELECT vlink_id FROM network_service WHERE ntw_service_id=?', (service_id,))
-        result = self.dbman.fetchone()
+        vlink_id = self.dbman.fetchone()['vlink_id']
 
-        if result is None:
+        if not vlink_id:
             self.logger.info('Creating VLINK object...')
 
             vlink_json = load_json_file('json/create_vlink.json')
@@ -263,10 +263,9 @@ class DeployHotPackage(Event):
             ex_input['extensions-input']['network-policy']['policy_name'] = customer_id + '_policy'
             ex_input['extensions-input']['network-policy']['policy-rule'] = policy_rule_list
 
-            vlink_json['orderItems'][0]['createVLink']['customInputParams'][0]['value'] = json.dumps(ex_input)
+            vlink_json['customInputParams'][0]['value'] = json.dumps(ex_input)
 
-            self.dbman.query('SELECT vlink_id FROM network_service WHERE ntw_service_id=?', (service_id, ))
-            ecm_util.invoke_ecm_api(result['vlink_id'], c.ecm_service_api_vlinks, 'PUT', vlink_json)
+            ecm_util.invoke_ecm_api(vlink_id, c.ecm_service_api_vlinks, 'PUT', vlink_json)
 
     def rollback(self):
         # if self.order_status == 'ERR' or self.event_params['rollback'] == 'YES':
