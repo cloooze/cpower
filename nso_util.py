@@ -17,8 +17,7 @@ CREATE_DELETE_VNF_OK = {
             "customer-key": "",
             "result": "success",
             "service-id": "",
-            "chain-left-ip": "",
-            "chain-right-ip": "",
+            "opeartion": "create",
             "vnf": [
                 {
                     "operation": "",
@@ -96,11 +95,9 @@ DELETE_SERVICE_NOK = {
 }
 
 
-def get_create_vnf_data_response(result, customer_id, service_id=None, chain_left_ip=None, chain_right_ip=None, vnf_list=None):
+def get_create_vnf_data_response(result, customer_id, service_id=None, vnf_list=None):
     if result == 'success':
         CREATE_DELETE_VNF_OK['customer'][0]['customer-key'] = customer_id
-        CREATE_DELETE_VNF_OK['customer'][0]['chain-left-ip'] = chain_left_ip
-        CREATE_DELETE_VNF_OK['customer'][0]['chain-right-ip'] = chain_right_ip
         CREATE_DELETE_VNF_OK['customer'][0]['service-id'] = service_id
         CREATE_DELETE_VNF_OK['customer'][0]['vnf'] = vnf_list
         return CREATE_DELETE_VNF_OK
@@ -112,16 +109,12 @@ def get_create_vnf_data_response(result, customer_id, service_id=None, chain_lef
 def get_delete_vnf_data_response(result, customer_id, service_id, vnf_list):
     if result == 'success':
         CREATE_DELETE_VNF_OK['customer'][0]['customer-key'] = customer_id
-        CREATE_DELETE_VNF_OK['customer'][0].pop('chain-left-ip')
-        CREATE_DELETE_VNF_OK['customer'][0].pop('chain-right-ip')
         CREATE_DELETE_VNF_OK['customer'][0]['service-id'] = service_id
         CREATE_DELETE_VNF_OK['customer'][0]['vnf'] = vnf_list
         return CREATE_DELETE_VNF_OK
     else:
         CREATE_DELETE_VNF_NOK['customer'][0]['customer-key'] = customer_id
-        CREATE_DELETE_VNF_OK['customer'][0].pop('chain-left-ip')
-        CREATE_DELETE_VNF_OK['customer'][0].pop('chain-right-ip')
-        CREATE_DELETE_VNF_OK['customer'][0].pop('service-od')
+        CREATE_DELETE_VNF_OK['customer'][0].pop('service-id')
         CREATE_DELETE_VNF_OK['customer'][0].pop('vnf')
         return CREATE_DELETE_VNF_NOK
 

@@ -19,7 +19,14 @@ class DeployHotPackage(Event):
         self.source_api = source_api
 
     def notify(self):
-        pass
+        if self.order_status == 'ERR':
+            try:
+                customer_id = self.order_json['data']['order']['orderItems'][0]['deployHotPackage']['name'].split('-')[1]
+            except KeyError:
+                self.logger.info('Received a request not handled by custom workflow. Skipping execution')
+                return
+
+            nso_util.notify_nso('createService', nso_util.get_create_vnf_data_response('failed', customer_id))
 
     def execute(self):
         # TODO
@@ -35,11 +42,11 @@ class DeployHotPackage(Event):
         vnf_id = self.order_json['data']['order']['orderItems'][0]['deployHotPackage']['id']
 
         if self.order_status == 'ERR':
-            self.dbman.query('SELECT vnf.service_id,vn_group.vn_group_id,vn_left_id,vn_right_id FROM vnf,vn_group WHERE '
+            self.dbman.query('SELECT vnf.ntw_service_id,vn_group.vn_group_id,vn_left_id,vn_right_id FROM vnf,vn_group WHERE '
                              'vnf.vnf_type=? AND vnf.vnf_operation=? AND vnf.vnf_status=? AND '
                              'vnf.vn_group_id=vn_group.vn_group_id', (vnf_type, 'CREATE', 'PENDING'))
             result = self.dbman.fetchone()
-            self.event_params = {'service_id': result['service_id'],
+            self.event_params = {'service_id': result['ntw_service_id'],
                                  'vn_group_id': result['vn_group_id'],
                                  'vn_left_id': result['vn_left_id'],
                                  'vn_right_id': result['vn_right_id']}
@@ -125,7 +132,6 @@ class DeployHotPackage(Event):
         self.dbman.query('SELECT vnf_type FROM vnf WHERE ntw_service_id=?', (service_id,))
         result = self.dbman.fetchall()
         vnf_type_list = list(r['vnf_type'] for r in result)
-        self.logger.info('DEBUG ---- VNF TYPE LIST generata %s' % vnf_type_list)
 
         # Building vn names
         vn_name_l = customer_id + '-' + 'left'
@@ -193,9 +199,9 @@ class DeployHotPackage(Event):
         ex_input['extensions-input']['network-policy']['dst_address'] = 'default-domain:cpower:' + vn_name_r
 
         ex_input['extensions-input']['update-vn-RT']['right_VN'] = vn_vimobject_id_r
-        ex_input['extensions-input']['update-vn-RT']['right_RT'] = rt_right
+        ex_input['extensions-input']['update-vn-RT']['right_RT'] = rt_right.split(',')
         ex_input['extensions-input']['update-vn-RT']['left_VN'] = vn_vimobject_id_l
-        ex_input['extensions-input']['update-vn-RT']['left_RT'] = rt_left
+        ex_input['extensions-input']['update-vn-RT']['left_RT'] = rt_left.split(',')
         ex_input['extensions-input']['update-vn-RT'][
             'network_policy'] = 'default-domain:cpower:' + customer_id + '_policy'
 
@@ -213,18 +219,19 @@ class DeployHotPackage(Event):
             self.logger.info('Rollbacking...')
 
             service_id = self.event_params['service_id']
-            self.dbman.query('SELECT vnf_id,vm_id FROM vnf,vm WHERE vnf.ntw_service_id=? AND vnf.status=? AND '
-                             'vnf.operation=? AND nso_notify=?', (service_id, 'CREATE', 'COMPLETE', 'NO'))
+            self.dbman.query('SELECT vnf.vnf_id,vm.vm_id FROM vnf,vm WHERE vnf.ntw_service_id=? AND vnf.vnf_status=? AND '
+                             'vnf.vnf_operation=? AND vnf.nso_notify=?', (service_id, 'CREATE', 'COMPLETE', 'NO'))
             result = self.dbman.fetchall()
 
             for r in result:
                 vnf_id = r['vnf_id']
                 vm_id = r['vm_id']
 
-                self.logger.info('Deleting VAPP %s' % vnf_id)
-                ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
                 self.logger.info('Deleting VM %s' % vm_id)
                 ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'DELETE')
+
+                self.logger.info('Deleting VAPP %s' % vnf_id)
+                ecm_util.invoke_ecm_api(vnf_id, c.ecm_service_api_vapps, 'DELETE')
 
             vn_group_id = self.event_params['vn_group_id']
             vn_left_id = self.event_params['vn_left_id']
@@ -234,7 +241,6 @@ class DeployHotPackage(Event):
             ecm_util.invoke_ecm_api(vn_left_id, c.ecm_service_api_vns, 'DELETE') # what if it goes wrong?? :(
             ecm_util.invoke_ecm_api(vn_right_id, c.ecm_service_api_vns, 'DELETE')
 
-            self.dbman.delete_vn_group(vn_group_id)
 
 
             # TODO

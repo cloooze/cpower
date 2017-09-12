@@ -30,7 +30,7 @@ class DeleteVn(Event):
 
         vn_id = delete_vn['id']
 
-        self.dbman.query('SELECT vn_group_id FROM vn_group WHERE vn_left_id=? OR vn.vn_right_id=?', (vn_id,))
+        self.dbman.query('SELECT vn_group_id FROM vn_group WHERE vn_left_id=? OR vn_right_id=?', (vn_id, vn_id))
         row = self.dbman.fetchone()
 
         if row is None:
