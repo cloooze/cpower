@@ -77,7 +77,7 @@ class CreateOrderVn(Event):
         hot_file_json['tenantName'] = c.ecm_tenant_name
         hot_file_json['vdc']['id'] = c.ecm_vdc_id
         hot_file_json['hotPackage']['vapp']['name'] = vnf_type + '-' + customer_id
-        hot_file_json['hotPackage']['vapp']['configData'][0]['value'] = "csr100v_final" #TODO move in config base on vnf typ
+        hot_file_json['hotPackage']['vapp']['configData'][0]['value'] = vnf_type + '-' + customer_id
         hot_file_json['hotPackage']['vapp']['configData'][1]['value'] = customer_id + '-left'
         hot_file_json['hotPackage']['vapp']['configData'][2]['value'] = customer_id + '-right'
         hot_file_json['hotPackage']['vapp']['configData'][3]['value'] = c.mgmt_vn_name

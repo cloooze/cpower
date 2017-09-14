@@ -17,7 +17,7 @@ CREATE_DELETE_VNF_OK = {
             "customer-key": "",
             "result": "success",
             "service-id": "",
-            "opeartion": "create",
+            "operation": "create",
             "vnf": [
                 {
                     "operation": "",
@@ -36,9 +36,12 @@ CREATE_DELETE_VNF_NOK = {
     "customer": [
         {
             "customer-key": "",
-            "operation": "create",
             "result": "failed",
-            "error-code": "5"
+            "vnf": [
+                {
+
+                }
+            ]
         }
     ]
 }
@@ -103,19 +106,20 @@ def get_create_vnf_data_response(result, customer_id, service_id=None, vnf_list=
         return CREATE_DELETE_VNF_OK
     else:
         CREATE_DELETE_VNF_NOK['customer'][0]['customer-key'] = customer_id
+        CREATE_DELETE_VNF_NOK['customer'][0]['vnf'] = vnf_list
         return CREATE_DELETE_VNF_NOK
 
 
 def get_delete_vnf_data_response(result, customer_id, service_id, vnf_list):
     if result == 'success':
         CREATE_DELETE_VNF_OK['customer'][0]['customer-key'] = customer_id
-        CREATE_DELETE_VNF_OK['customer'][0]['service-id'] = service_id
+        CREATE_DELETE_VNF_OK['customer'][0].pop('operation')
+        CREATE_DELETE_VNF_OK['customer'][0].pop('service-id')
         CREATE_DELETE_VNF_OK['customer'][0]['vnf'] = vnf_list
         return CREATE_DELETE_VNF_OK
     else:
         CREATE_DELETE_VNF_NOK['customer'][0]['customer-key'] = customer_id
-        CREATE_DELETE_VNF_OK['customer'][0].pop('service-id')
-        CREATE_DELETE_VNF_OK['customer'][0].pop('vnf')
+        CREATE_DELETE_VNF_NOK['customer'][0]['vnf'] = vnf_list
         return CREATE_DELETE_VNF_NOK
 
 
@@ -144,7 +148,7 @@ def notify_nso(operation, data):
             nso_endpoint = c.nso_server_address + c.nso_service_uri_modify_service
 
         logger.info("Invoking NSO API %s - POST" % nso_endpoint)
-        logger.debug("Sending data: %s" % data)
+        logger.debug("Sending data: %s" % json.dumps(data))
 
         h = {'Content-Type': 'application/vnd.yang.data+json'}
         try:

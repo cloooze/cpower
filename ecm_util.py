@@ -37,14 +37,14 @@ def invoke_ecm_api(param, api, http_verb, json_data=''):
                                     timeout=c.ecm_service_timeout,
                                     headers=get_ecm_api_auth(),
                                     verify=False)
-                logger.debug("Sending data: %s" % json_data)
+                logger.debug("Sending data: %s" % json.dumps(json_data))
             elif http_verb == 'PUT':
                 resp = requests.put('%s%s%s' % (c.ecm_server_address, api, param),
                                      data=json.dumps(json_data, sort_keys=True),
                                      timeout=c.ecm_service_timeout,
                                      headers=get_ecm_api_auth(),
                                      verify=False)
-                logger.debug("Sending data: %s" % json_data)
+                logger.debug("Sending data: %s" % json.dumps(json_data))
             elif http_verb == 'DELETE':
                 resp = requests.delete('%s%s%s' % (c.ecm_server_address, api, param),
                                      timeout=c.ecm_service_timeout,

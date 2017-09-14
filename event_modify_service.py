@@ -112,6 +112,9 @@ class ModifyService(Event):
                 vnf_id = result['vnf_id']
                 vm_id = result['vm_id']
 
+                self.logger.info('Setting VNF_OPERATION to DELETE')
+                self.dbman.query('UPDATE vnf SET vnf_operation = ? WHERE vnf_id = ?', ('DELETE', vnf_id))
+
                 self.logger.info('Deleting VM %s' % vm_id)
                 ecm_util.invoke_ecm_api(vm_id, c.ecm_service_api_vms, 'DELETE')
 

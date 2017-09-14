@@ -5,7 +5,7 @@
   },
   "hotPackage": {
     "vapp": {
-      "name": "<customer_id>-<vnf_type>",
+      "name": "<vnf_type>-<customer_id>",
       "configData": [
         {
           "name": "vm1_name",
@@ -22,6 +22,10 @@
         {
           "name": "management",
           "value": "<mgmt_name_from_config>"
+        },
+        {
+          "name": "image_id1",
+          "value": "csr1000v_final"
         }
       ]
     }

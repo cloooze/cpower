@@ -24,6 +24,11 @@ class DeleteVn(Event):
     def execute(self):
         if self.order_status == 'ERR':
             self.logger.error(self.order_json['data']['order']['orderMsgs'])
+
+            # This code is returned if the VN is still associated to a resource and cannot be deleted. this might happen when rollbacking a Vapp
+            if self.order_json['data']['order']['orderMsgs'][0]['msgCode'] == 'ECMSD023':
+                return 'SUCCESS'
+
             return 'FAILURE'
 
         delete_vn = get_order_items('deleteVn', self.order_json)[0]

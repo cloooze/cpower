@@ -83,7 +83,7 @@ class CreateOrderService(Event):
         ntw_service_row = (service_id, customer_id, service_name, rt_left, rt_right, rt_mgmt, '', '', '', 'NO')
         try:
             self.dbman.save_network_service(ntw_service_row)
-            self.logger.info('Network Service \'%s\' successfully stored into database.' % service_id)
+            self.logger.info('Network Service [%s] successfully stored into database.' % service_id)
         except sqlite3.IntegrityError:
             # Same as for customer
             pass
