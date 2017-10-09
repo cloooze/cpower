@@ -6,6 +6,7 @@ nso_service_timeout = 10
 nso_auth_username = "admin"
 nso_auth_password = "admin"
 
+
 logging_level = "DEBUG"
 
 retry_n = 3
@@ -49,3 +50,4 @@ ovf_package_dpi_2 = ""
 # TO change to the following naming ovf_package_<vnf-type-name>_<create or add>
 #ovf_package_fortinet_create
 #ovf_package_fortinet_add
+#test
