@@ -33,7 +33,7 @@ def setup_logging():
 
 def main():
     setup_logging()
-    logger.info('Starting script execution...')
+    logger.info('Starting script execution....')
 
     order_id = get_env_var('ECM_PARAMETER_ORDERID')
     source_api = get_env_var('ECM_PARAMETER_SOURCEAPI')
